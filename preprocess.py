@@ -277,7 +277,6 @@ def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
     output_workbook.save(output_file_path)
     print(f"Processing complete. Data written to {output_file_path}")
 
-
 # def main():
 #     """Main function to execute the data processing."""
 
