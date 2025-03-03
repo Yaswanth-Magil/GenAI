@@ -118,10 +118,10 @@ def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
     """Processes the input Excel file, extracts data, and writes to a new Excel file."""
 
     competitors = {
-        # 'SPF': 'South plainfield Competitor',
-        'Princeton': 'Princeton Competitor',
-        # 'Parsippany': 'Parsippany Competitor',
-        # 'Chicago': 'Chicago Competitor'
+        # 'SPF': 'Chand Palace',
+        'Princeton': 'Saravana Bhavan',
+        # 'Parsippany': 'Sangeetha',
+        # 'Chicago': 'Udupi Palace'
     }
 
     workbook = openpyxl.load_workbook(input_file_path)
