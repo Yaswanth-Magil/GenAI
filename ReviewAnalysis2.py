@@ -5,6 +5,8 @@ import json
 import traceback
 from google.api_core.exceptions import ResourceExhausted
 import google.generativeai as genai
+from datetime import datetime, date
+from dateutil.relativedelta import relativedelta  # Make sure to install: pip install python-dateutil
 
 categories = [
     "Cleanliness", "Menu Variety", "Portion Size", "Staff Friendliness", "Overall Experience",
@@ -26,7 +28,6 @@ def generate_content_from_file(review):
 If a field cannot be determined, set its value to an empty dictionary (for dish_sentiment, staff_sentiment, category_sentiment) or neutral for review_sentiment. Make sure the keys are always enclosed in double quotes.
 
 Here is the review: {review}"""
-    
     max_retries = 5
     for attempt in range(max_retries):
         try:
@@ -52,153 +53,167 @@ def get_column_index(sheet, column_name):
     return None
 
 
-def process_reviews(sheet, filtered_rows):
-    """Processes the filtered reviews from all sheets and adds sentiment and extractions."""
-    # Check if columns already exist
-    review_sentiment_column_index = get_column_index(sheet, 'Review Sentiment')
-    dish_sentiment_column_index = get_column_index(sheet, 'Dish Sentiment')
-    staff_sentiment_column_index = get_column_index(sheet, 'Staff Sentiment')
-    category_sentiment_column_index = get_column_index(sheet, 'Category Sentiment')
-    reviews_column_index = get_column_index(sheet, 'Reviews')
-    if not reviews_column_index:
-        print(f"Error: 'Reviews' column not found in sheet {sheet.title}. Skipping...")
-        return
+def process_reviews(xlsx_file_path):
+    """Processes reviews from all sheets in an Excel file and adds sentiment and extractions, considering only the previous month's data."""
+    workbook = openpyxl.load_workbook(xlsx_file_path)
 
-    # Add columns if they don't exist
-    next_available_column = sheet.max_column + 1
+    # Get the previous month (integer representation)
+    today = date.today()
+    first = today.replace(day=1)
+    lastMonth = first - relativedelta(months=1)
+    previous_month = lastMonth.month # Example: 2 for February
 
-    if not review_sentiment_column_index:
-        sheet.cell(row=1, column=next_available_column, value='Review Sentiment')
-        review_sentiment_column_index = next_available_column
-        next_available_column += 1
-
-    if not dish_sentiment_column_index:
-        sheet.cell(row=1, column=next_available_column, value='Dish Sentiment')
-        dish_sentiment_column_index = next_available_column
-        next_available_column += 1
-
-    if not staff_sentiment_column_index:
-        sheet.cell(row=1, column=next_available_column, value='Staff Sentiment')
-        staff_sentiment_column_index = next_available_column
-        next_available_column += 1
-
-    if not category_sentiment_column_index:
-        sheet.cell(row=1, column=next_available_column, value='Category Sentiment')
-        category_sentiment_column_index = next_available_column
-        next_available_column += 1
-
-    for row_num, row in enumerate(filtered_rows, start=2):
-        review = row[reviews_column_index - 1] if len(row) >= reviews_column_index else None
-
-        if review:
-            try:
-                api_response = generate_content_from_file(review)
-
-                if api_response:
-                    print(f"API Response: {api_response}")  # Add this line for debugging
-
-                    # Remove the extra characters before and after the JSON
-                    api_response = api_response.replace("```json", "").replace("```", "").strip()
-
-                    try:
-                        data = json.loads(api_response)
-                        review_sentiment = data.get('review_sentiment', 'Unknown')
-                        dish_sentiment = data.get('dish_sentiment', {})
-                        staff_sentiment = data.get('staff_sentiment', {})
-                        category_sentiment = data.get('category_sentiment', {})
-
-                        sheet.cell(row=row_num, column=review_sentiment_column_index, value=review_sentiment)
-                        sheet.cell(row=row_num, column=dish_sentiment_column_index, value=json.dumps(dish_sentiment))
-                        sheet.cell(row=row_num, column=staff_sentiment_column_index, value=json.dumps(staff_sentiment))
-                        sheet.cell(row=row_num, column=category_sentiment_column_index, value=json.dumps(category_sentiment))
-
-                        print(f"Review: {review}\nReview Sentiment: {review_sentiment}\nDish Sentiment: {dish_sentiment}\nStaff Sentiment: {staff_sentiment}\nCategory Sentiment: {category_sentiment}\n")
-
-                    except json.JSONDecodeError as e:
-                        print(f"Error decoding JSON response: {e}\nResponse was: {api_response}")
-                        with open("json_error_log.txt", "a") as f:
-                            f.write(f"Row: {row_num}\nResponse: {api_response}\n")
-                            f.write(traceback.format_exc() + "\n")
-                        sheet.cell(row=row_num, column=review_sentiment_column_index, value="JSON Error")
-                        sheet.cell(row=row_num, column=dish_sentiment_column_index, value="JSON Error")
-                        sheet.cell(row=row_num, column=staff_sentiment_column_index, value="JSON Error")
-                        sheet.cell(row=row_num, column=category_sentiment_column_index, value="JSON Error")
-                    except UnicodeDecodeError as e:
-                        print(f"UnicodeDecodeError: {e}")
-                        sheet.cell(row=row_num, column=review_sentiment_column_index, value="Encoding Error")
-                        sheet.cell(row=row_num, column=dish_sentiment_column_index, value="Encoding Error")
-                        sheet.cell(row=row_num, column=staff_sentiment_column_index, value="Encoding Error")
-                        sheet.cell(row=row_num, column=category_sentiment_column_index, value="Encoding Error")
-
-                else:
-                    print(f"No response from API for review in row {row_num}")
-                    sheet.cell(row=row_num, column=review_sentiment_column_index, value="API Error")
-                    sheet.cell(row=row_num, column=dish_sentiment_column_index, value="API Error")
-                    sheet.cell(row=row_num, column=staff_sentiment_column_index, value="API Error")
-                    sheet.cell(row=row_num, column=category_sentiment_column_index, value="API Error")
-            except Exception as e:
-                print(f"Error processing review in row {row_num}: {e}")
-                sheet.cell(row=row_num, column=review_sentiment_column_index, value="Error")
-                sheet.cell(row=row_num, column=dish_sentiment_column_index, value="Error")
-                sheet.cell(row=row_num, column=staff_sentiment_column_index, value="Error")
-                sheet.cell(row=row_num, column=category_sentiment_column_index, value="Error")
-
-        else:
-            print("No review text found. Skipping...\n")
-            continue
-
-
-def filter_rows_by_previous_month(file_path, previous_month):
-    """Filters the rows of the Excel file based on the previous month."""
-    workbook = openpyxl.load_workbook(file_path)
-    filtered_rows = []
-    
     for sheet in workbook.worksheets:
-        month_column_index = None
-        for cell in sheet[1]:
-            if cell.value and cell.value.strip().lower() == 'month':
-                month_column_index = cell.column
-                break
-        
-        if month_column_index is None:
-            print(f"Month column not found in sheet {sheet.title}. Skipping...")
+        sheet_name = sheet.title
+        print(f"Processing sheet: {sheet_name}")
+
+        # Check if columns already exist
+        review_sentiment_column_index = get_column_index(sheet, 'Review Sentiment')
+        dish_sentiment_column_index = get_column_index(sheet, 'Dish Sentiment')
+        staff_sentiment_column_index = get_column_index(sheet, 'Staff Sentiment')
+        category_sentiment_column_index = get_column_index(sheet, 'Category Sentiment')
+        reviews_column_index = get_column_index(sheet, 'Reviews')
+        month_column_index = get_column_index(sheet, 'Month')  # Get the 'Month' column index
+
+        if not reviews_column_index:
+            print(f"Error: 'Reviews' column not found in sheet {sheet_name}. Skipping...")
             continue
 
-        # Filter rows based on the 'Month' column value
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            month_value = row[month_column_index - 1]
-            if month_value == previous_month:
-                filtered_rows.append(row)
+        if not month_column_index:
+            print(f"Warning: 'Month' column not found in sheet {sheet_name}.  Processing all rows (no filtering).")
+            process_all_rows = True # Flag to indicate that all rows should be processed if month column is not found
+        else:
+            process_all_rows = False  # Flag to indicate the need to filter based on month.
 
-    return filtered_rows
+        # Add columns if they don't exist
+        next_available_column = sheet.max_column + 1
+
+        if not review_sentiment_column_index:
+            sheet.cell(row=1, column=next_available_column, value='Review Sentiment')
+            review_sentiment_column_index = next_available_column
+            next_available_column += 1
+
+        if not dish_sentiment_column_index:
+            sheet.cell(row=1, column=next_available_column, value='Dish Sentiment')
+            dish_sentiment_column_index = next_available_column
+            next_available_column += 1
+
+        if not staff_sentiment_column_index:
+            sheet.cell(row=1, column=next_available_column, value='Staff Sentiment')
+            staff_sentiment_column_index = next_available_column
+            next_available_column += 1
+
+        if not category_sentiment_column_index:
+            sheet.cell(row=1, column=next_available_column, value='Category Sentiment')
+            category_sentiment_column_index = next_available_column
+            next_available_column += 1
+
+        for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            review = row[reviews_column_index - 1] if len(row) >= reviews_column_index else None
+            month_value = row[month_column_index - 1] if not process_all_rows and len(row) >= month_column_index else None  #Get the month value from the row
+
+            if not process_all_rows:
+                try:
+                    #Check the month before processing
+                    if month_value is not None:
+                        try:
+                            month = int(month_value) #Ensure month is converted to Integer for proper comparison.
+                        except ValueError:
+                            print(f"Warning: Could not convert month value '{month_value}' to integer in sheet {sheet_name} row {row_num}. Skipping row.")
+                            continue # Skip to the next row if conversion to int fails
+
+                        if month != previous_month: #Check if the month matches
+                            print(f"Skipping row {row_num} in sheet {sheet_name} because month {month} is not the previous month ({previous_month}).")
+                            continue #Skip to the next row if the month does not match
+                    else:
+                        print(f"Warning: Month value is None in sheet {sheet_name} row {row_num}.  Skipping row.")
+                        continue # Skip to the next row if month_value is None
+
+                except Exception as e:
+                     print(f"Error while checking the Month in sheet {sheet_name} row {row_num}: {e}")
+                     continue  # Skip to the next row if any error occurs while checking the month.
+
+            if review:
+                try:
+                    api_response = generate_content_from_file(review)
+
+                    if api_response:
+                        print(f"API Response: {api_response}")  # Add this line for debugging
+
+                        # Remove the extra characters before and after the JSON
+                        api_response = api_response.replace("```json", "").replace("```", "").strip()
+
+                        try:
+                            #api_response = api_response.encode('utf-8').decode('utf-8') #Try to fix decoding errors
+                            data = json.loads(api_response)
+                            review_sentiment = data.get('review_sentiment', 'Unknown')
+                            dish_sentiment = data.get('dish_sentiment', {})
+                            staff_sentiment = data.get('staff_sentiment', {})
+                            category_sentiment = data.get('category_sentiment', {})
+
+                            sheet.cell(row=row_num, column=review_sentiment_column_index, value=review_sentiment)
+                            sheet.cell(row=row_num, column=dish_sentiment_column_index, value=json.dumps(dish_sentiment))
+                            sheet.cell(row=row_num, column=staff_sentiment_column_index, value=json.dumps(staff_sentiment))
+                            sheet.cell(row=row_num, column=category_sentiment_column_index, value=json.dumps(category_sentiment))
+
+                            print(f"Review: {review}\nReview Sentiment: {review_sentiment}\nDish Sentiment: {dish_sentiment}\nStaff Sentiment: {staff_sentiment}\nCategory Sentiment: {category_sentiment}\n")
+
+                        except json.JSONDecodeError as e:
+                            print(f"Error decoding JSON response in sheet {sheet_name} row {row_num}: {e}\nResponse was: {api_response}")
+                            traceback.print_exc() #Print the traceback
+                            with open("json_error_log.txt", "a") as f: #Log response to a file
+                                f.write(f"Sheet: {sheet_name}, Row: {row_num}\n")
+                                f.write(f"Response: {api_response}\n")
+                                f.write(traceback.format_exc() + "\n")
+
+                            sheet.cell(row=row_num, column=review_sentiment_column_index, value="JSON Error")
+                            sheet.cell(row=row_num, column=dish_sentiment_column_index, value="JSON Error")
+                            sheet.cell(row=row_num, column=staff_sentiment_column_index, value="JSON Error")
+                            sheet.cell(row=row_num, column=category_sentiment_column_index, value="JSON Error")
+                        except UnicodeDecodeError as e:
+                            print(f"UnicodeDecodeError: {e}")
+                            # Handle the encoding error appropriately (e.g., try a different encoding)
+                            sheet.cell(row=row_num, column=review_sentiment_column_index, value="Encoding Error")
+                            sheet.cell(row=row_num, column=dish_sentiment_column_index, value="Encoding Error")
+                            sheet.cell(row=row_num, column=staff_sentiment_column_index, value="Encoding Error")
+                            sheet.cell(row=row_num, column=category_sentiment_column_index, value="Encoding Error")
+
+
+                    else:
+                        print(f"No response from API for review in sheet {sheet_name} row {row_num}")
+                        sheet.cell(row=row_num, column=review_sentiment_column_index, value="API Error")
+                        sheet.cell(row=row_num, column=dish_sentiment_column_index, value="API Error")
+                        sheet.cell(row=row_num, column=staff_sentiment_column_index, value="API Error")
+                        sheet.cell(row=row_num, column=category_sentiment_column_index, value="API Error")
+
+
+                except Exception as e:
+                    print(f"Error processing review in sheet {sheet_name} row {row_num}: {e}")
+                    sheet.cell(row=row_num, column=review_sentiment_column_index, value="Error")
+                    sheet.cell(row=row_num, column=dish_sentiment_column_index, value="Error")
+                    sheet.cell(row=row_num, column=staff_sentiment_column_index, value="Error")
+                    sheet.cell(row=row_num, column=category_sentiment_column_index, value="Error")
+
+            else:
+                print("No review text found. Skipping...\n")
+                continue
+
+    workbook.save(xlsx_file_path)
+    print(f"Sentiment analysis and extraction completed. Updated file: {xlsx_file_path}")
 
 
 # def main():
 #     """Main function to execute the sentiment analysis."""
-#     api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+#     # api_key = os.environ.get("GEMINI_API_KEY")
+#     api_key ="AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+#     # if not api_key:
+#     #     print("Error: GEMINI_API_KEY environment variable not set.")
+#     #     return
+
 #     genai.configure(api_key=api_key)
 
-#     current_date = datetime.now()  
-#     previous_month = get_previous_month(current_date)
-#     print(f"Previous month is: {previous_month}")
-
-#     file_path = "/Users/yash/Downloads/Today/Splitted/A2b January month.xlsx"
-    
-#     # Step 1: Filter rows based on the previous month
-#     filtered_rows = filter_rows_by_previous_month(file_path, previous_month)
-    
-#     if not filtered_rows:
-#         print("No rows found for the previous month. Exiting...")
-#         return
-
-#     # Step 2: Process the reviews with the filtered rows
-#     workbook = openpyxl.load_workbook(file_path)
-#     for sheet in workbook.worksheets:
-#         process_reviews(sheet, filtered_rows)
-
-#     # Save the workbook
-#     workbook.save(file_path)
-#     print(f"Sentiment analysis and extraction completed. Updated file: {file_path}")
+#     xlsx_file_path = "/Users/yash/Downloads/Today/Splitted/Princeton.xlsx"
+#     process_reviews(xlsx_file_path)
 
 
 # if __name__ == "__main__":

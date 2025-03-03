@@ -3,9 +3,7 @@ import json
 from collections import defaultdict
 import google.generativeai as genai
 import os
-import openpyxl
-from openpyxl import Workbook
-from collections import defaultdict
+
 
 def aggregate_counts(counts, api_key):
     """Aggregates counts of similar dishes or staff names using Gemini's understanding."""
@@ -115,66 +113,36 @@ Focus on highlighting the strengths of {competitor_name} based on these reviews.
         print(f"Error during competition analysis: {e}")
         return "Error analyzing competition.", "API Error", "Error analyzing competition.", "API Error"
 
-def save_to_excel(data, output_filename="output.xlsx"):
-    """Saves processed data to an Excel file."""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Review Analysis"
 
-    # Define headers
-    headers = [
-        "Outlet",
-        "Overall Positive Count",
-        "Overall Negative Count",
-        "Overall Neutral Count",
-        "Dish Positive Counts",
-        "Dish Negative Counts",
-        "Staff Positive Counts",
-        "Staff Negative Counts",
-        "Category Positive Counts",
-        "Category Negative Counts",
-        "Positive Reviews",
-        "Negative Reviews"
-    ]
-    ws.append(headers)
+def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
+    """Processes the input Excel file, extracts data, and writes to a new Excel file."""
 
-    # Write data rows
-    for entry in data:
-        ws.append([
-            entry["outlet"],
-            entry["overall_positive_count"],
-            entry["overall_negative_count"],
-            entry["overall_neutral_count"],
-            str(entry["dish_positive_counts"]),
-            str(entry["dish_negative_counts"]),
-            str(entry["staff_positive_counts"]),
-            str(entry["staff_negative_counts"]),
-            str(entry["category_positive_counts"]),
-            str(entry["category_negative_counts"]),
-            "\n".join(entry["positive_reviews"]),
-            "\n".join(entry["negative_reviews"])
-        ])
-
-    # Save the file
-    wb.save(output_filename)
-    print(f"Output successfully saved to {output_filename}")
-
-
-def process_filtered_rows(input_data, api_key, output_filename="output.xlsx"):
-    """Processes filtered reviews and stores output in an Excel file."""
     competitors = {
-        'SPF': 'Chand Palace',
-        'Princeton': 'Saravana Bhavan',
-        'Parsippany': 'Sangeetha',
-        'Chicago': 'Udupi Palace'
+        # 'SPF': 'South plainfield Competitor',
+        'Princeton': 'Princeton Competitor',
+        # 'Parsippany': 'Parsippany Competitor',
+        # 'Chicago': 'Chicago Competitor'
     }
 
-    output_data = []
+    workbook = openpyxl.load_workbook(input_file_path)
+    output_workbook = openpyxl.Workbook()
+    output_sheet = output_workbook.active
 
-    for outlet, reviews in input_data.items():
-        print(f"Processing outlet: {outlet}")
+    header = [
+        'Outlet', 'Overall Positive Count', 'Overall Negative Count', 'Overall Neutral Count',
+        'Dish Positive Count', 'Dish Negative Count', 'Staff Positive Count', 'Staff Negative Count',
+        'Category Positive Count', 'Category Negative Count', 'Positive Summary',
+        'pos_summary_justification', 'Negative Summary', 'neg_summary_justification',
+        'Where_I_do_better', 'Where_I_do_better_justification',
+        'Where_competitor_do_better', 'Where_competitor_do_better_justification'
+    ]
+    output_sheet.append(header)
 
-        # Initialize counts
+    for sheet_name in workbook.sheetnames:
+        sheet = workbook[sheet_name]
+        print(f"Processing outlet: {sheet_name}")
+
+        outlet = sheet_name
         overall_positive_count = 0
         overall_negative_count = 0
         overall_neutral_count = 0
@@ -189,87 +157,136 @@ def process_filtered_rows(input_data, api_key, output_filename="output.xlsx"):
         positive_reviews_for_summary = []
         negative_reviews_for_summary = []
 
-        competitor_name = competitors.get(outlet, "Unknown Competitor")
+        # Collect competitor reviews *before* the loop
+        competitor_positive_reviews = []
+        competitor_negative_reviews = []
+        found_competitor_sheet = False
 
-        # Process reviews
-        for row in reviews:
+        for comp_sheet_name in workbook.sheetnames:
+            if competitors.get(sheet_name) == comp_sheet_name:
+                competitor_sheet = workbook[comp_sheet_name]
+                found_competitor_sheet = True
+                print(f"Found competitor sheet: {comp_sheet_name}")
+
+                for row_num, row in enumerate(competitor_sheet.iter_rows(min_row=2, values_only=True), start=2):
+                    try:
+                        review_text = row[5]
+                        review_sentiment = row[6]
+
+                        if isinstance(review_sentiment, str):
+                            sentiment_lower = review_sentiment.lower()
+                            if sentiment_lower == 'positive' and review_text:
+                                competitor_positive_reviews.append(review_text)
+                            elif sentiment_lower == 'negative' and review_text:
+                                competitor_negative_reviews.append(review_text)
+
+                    except Exception as e:
+                        print(f"Error processing competitor row {row_num} in sheet {comp_sheet_name}: {e}")
+                break  # Stop searching after finding the competitor
+
+        if not found_competitor_sheet:
+            print(f"Warning: Competitor sheet '{competitors.get(sheet_name)}' not found.")
+
+        for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
             try:
-                review_text = row.get('review_text')
-                review_sentiment = row.get('review_sentiment')
-                dish_sentiment = row.get('dish_sentiment')
-                staff_sentiment = row.get('staff_sentiment')
-                category_sentiment = row.get('category_sentiment')
+                review_text = row[5]
+                review_sentiment = row[6]
+                dish_sentiment_str = row[7]
+                staff_sentiment_str = row[8]
+                category_sentiment_str = row[9]
 
-                if review_sentiment.lower() == 'positive':
-                    overall_positive_count += 1
-                    if review_text:
-                        positive_reviews_for_summary.append(review_text)
-                elif review_sentiment.lower() == 'negative':
-                    overall_negative_count += 1
-                    if review_text:
-                        negative_reviews_for_summary.append(review_text)
-                elif review_sentiment.lower() == 'neutral':
-                    overall_neutral_count += 1
+                if isinstance(review_sentiment, str):
+                    sentiment_lower = review_sentiment.lower()
+                    if sentiment_lower == 'positive':
+                        overall_positive_count += 1
+                        if review_text:
+                            positive_reviews_for_summary.append(review_text)
+                    elif sentiment_lower == 'negative':
+                        overall_negative_count += 1
+                        if review_text:
+                            negative_reviews_for_summary.append(review_text)
+                    elif sentiment_lower == 'neutral':
+                        overall_neutral_count += 1
 
-                # Process dish sentiment
-                if isinstance(dish_sentiment, dict):
-                    for dish, sentiment in dish_sentiment.items():
-                        if sentiment.lower() == 'positive':
-                            dish_positive_counts[dish] += 1
-                        elif sentiment.lower() == 'negative':
-                            dish_negative_counts[dish] += 1
+                if isinstance(dish_sentiment_str, str) and dish_sentiment_str.strip():
+                    try:
+                        dish_sentiment = json.loads(dish_sentiment_str)
+                        for dish, sentiment in dish_sentiment.items():
+                            if sentiment.lower() == 'positive':
+                                dish_positive_counts[dish] += 1
+                            elif sentiment.lower() == 'negative':
+                                dish_negative_counts[dish] += 1
+                    except json.JSONDecodeError:
+                        print(f"Error parsing dish sentiment in row {row_num}: {dish_sentiment_str}")
 
-                # Process staff sentiment
-                if isinstance(staff_sentiment, dict):
-                    for staff, sentiment in staff_sentiment.items():
-                        if sentiment.lower() == 'positive':
-                            staff_positive_counts[staff] += 1
-                        elif sentiment.lower() == 'negative':
-                            staff_negative_counts[staff] += 1
+                if isinstance(staff_sentiment_str, str) and staff_sentiment_str.strip():
+                    try:
+                        staff_sentiment = json.loads(staff_sentiment_str)
+                        for staff, sentiment in staff_sentiment.items():
+                            if sentiment.lower() == 'positive':
+                                staff_positive_counts[staff] += 1
+                            elif sentiment.lower() == 'negative':
+                                staff_negative_counts[staff] += 1
+                    except json.JSONDecodeError:
+                        print(f"Error parsing staff sentiment in row {row_num}: {staff_sentiment_str}")
 
-                # Process category sentiment
-                if isinstance(category_sentiment, dict):
-                    for category, sentiment in category_sentiment.items():
-                        if sentiment.lower() == 'positive':
-                            category_positive_counts[category] += 1
-                        elif sentiment.lower() == 'negative':
-                            category_negative_counts[category] += 1
+                if isinstance(category_sentiment_str, str) and category_sentiment_str.strip():
+                    try:
+                        category_sentiment = json.loads(category_sentiment_str)
+                        for category, sentiment in category_sentiment.items():
+                            if sentiment.lower() == 'positive':
+                                category_positive_counts[category] += 1
+                            elif sentiment.lower() == 'negative':
+                                category_negative_counts[category] += 1
+                    except json.JSONDecodeError:
+                        print(f"Error parsing category sentiment in row {row_num}: {category_sentiment_str}")
 
             except Exception as e:
-                print(f"Error processing review row: {e}")
+                print(f"Error processing row {row_num}: {e}")
 
-        # Collect the results for the outlet
-        output_row = {
-            'outlet': outlet,
-            'overall_positive_count': overall_positive_count,
-            'overall_negative_count': overall_negative_count,
-            'overall_neutral_count': overall_neutral_count,
-            'dish_positive_counts': dict(dish_positive_counts),
-            'dish_negative_counts': dict(dish_negative_counts),
-            'staff_positive_counts': dict(staff_positive_counts),
-            'staff_negative_counts': dict(staff_negative_counts),
-            'category_positive_counts': dict(category_positive_counts),
-            'category_negative_counts': dict(category_negative_counts),
-            'positive_reviews': positive_reviews_for_summary,
-            'negative_reviews': negative_reviews_for_summary
-        }
+        # Aggregate dish counts
+        dish_positive_counts_aggregated = aggregate_counts(dish_positive_counts, api_key)
+        dish_negative_counts_aggregated = aggregate_counts(dish_negative_counts, api_key)
+        staff_positive_counts_aggregated = aggregate_counts(staff_positive_counts, api_key)
+        staff_negative_counts_aggregated = aggregate_counts(staff_negative_counts, api_key)
+        category_positive_counts_aggregated = aggregate_counts(category_positive_counts, api_key)
+        category_negative_counts_aggregated = aggregate_counts(category_negative_counts, api_key)
 
-        output_data.append(output_row)
+        # Create positive and negative summaries
+        positive_summary, pos_summary_justification = summarize_reviews("\n".join(positive_reviews_for_summary), "positive", api_key)
+        negative_summary, neg_summary_justification = summarize_reviews("\n".join(negative_reviews_for_summary), "negative", api_key)
 
-    # Save output to Excel
-    save_to_excel(output_data, output_filename)
+        # Analyze competition
+        competitor_name = competitors.get(sheet_name, "Unknown Competitor")
+        my_better, my_better_justification, competitor_better, competitor_better_justification = \
+            analyze_competition("\n".join(positive_reviews_for_summary + negative_reviews_for_summary),  # All my reviews
+                                "\n".join(competitor_positive_reviews + competitor_negative_reviews),  # Competitor reviews
+                                sheet_name, competitor_name, api_key)
+
+        # Write the data to the output sheet
+        output_row = [
+            outlet, overall_positive_count, overall_negative_count, overall_neutral_count,
+            json.dumps(dish_positive_counts_aggregated), json.dumps(dish_negative_counts_aggregated),
+            json.dumps(staff_positive_counts_aggregated), json.dumps(staff_negative_counts_aggregated),
+            json.dumps(category_positive_counts_aggregated), json.dumps(category_negative_counts_aggregated),
+            positive_summary, pos_summary_justification, negative_summary, neg_summary_justification,
+            my_better, my_better_justification, competitor_better, competitor_better_justification
+        ]
+        output_sheet.append(output_row)
+
+    output_workbook.save(output_file_path)
+    print(f"Processing complete. Data written to {output_file_path}")
 
 
-# # Example usage
-# filtered_reviews = {
-#     'SPF': [
-#         {'review_text': 'Great food!', 'review_sentiment': 'positive', 'dish_sentiment': {}, 'staff_sentiment': {}, 'category_sentiment': {}},
-#         {'review_text': 'Nice service!', 'review_sentiment': 'positive', 'dish_sentiment': {}, 'staff_sentiment': {}, 'category_sentiment': {}}
-#     ],
-#     'Princeton': [
-#         {'review_text': 'Bad food', 'review_sentiment': 'negative', 'dish_sentiment': {}, 'staff_sentiment': {}, 'category_sentiment': {}}
-#     ]
-# }
+# def main():
+#     """Main function to execute the data processing."""
 
-# api_key = "your_api_key_here"
-# process_filtered_rows(filtered_reviews, api_key, "output.xlsx")
+#     api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+#     input_file_path = "/Users/yash/Downloads/Today/Splitted/A2b January month.xlsx"
+#     output_file_path = "/Users/yash/Downloads/Today/Splitted/output_summary_competitor_analysis.xlsx"
+
+#     process_excel_and_extract_data(input_file_path, output_file_path, api_key)
+
+
+# if __name__ == "__main__":
+#     main()
