@@ -163,22 +163,19 @@ def process_reviews(xlsx_file_path):
     workbook.save(xlsx_file_path)
     print(f"Sentiment analysis and extraction completed. Updated file: {xlsx_file_path}")
 
+# def main():
+#     """Main function to execute the sentiment analysis."""
+#     # api_key = os.environ.get("GEMINI_API_KEY")
+#     api_key ="AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+#     # if not api_key:
+#     #     print("Error: GEMINI_API_KEY environment variable not set.")
+#     #     return
+
+#     genai.configure(api_key=api_key)
+
+#     xlsx_file_path = "/Users/yash/Downloads/Today/Splitted/Princeton.xlsx"
+#     process_reviews(xlsx_file_path)
 
 
-
-def main():
-    """Main function to execute the sentiment analysis."""
-    # api_key = os.environ.get("GEMINI_API_KEY")
-    api_key ="AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
-    # if not api_key:
-    #     print("Error: GEMINI_API_KEY environment variable not set.")
-    #     return
-
-    genai.configure(api_key=api_key)
-
-    xlsx_file_path = "/Users/yash/Downloads/Today/Splitted/Princeton.xlsx"
-    process_reviews(xlsx_file_path)
-
-
-if __name__ == "__main__":
+# if __name__ == "__main__":
     main()
