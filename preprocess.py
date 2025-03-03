@@ -278,15 +278,15 @@ def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
     print(f"Processing complete. Data written to {output_file_path}")
 
 
-def main():
-    """Main function to execute the data processing."""
+# def main():
+#     """Main function to execute the data processing."""
 
-    api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
-    input_file_path = "/Users/yash/Downloads/Today/Splitted/A2b January month.xlsx"
-    output_file_path = "/Users/yash/Downloads/Today/Splitted/output_summary_competitor_analysis.xlsx"
+#     api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+#     input_file_path = "/Users/yash/Downloads/Today/Splitted/A2b January month.xlsx"
+#     output_file_path = "/Users/yash/Downloads/Today/Splitted/output_summary_competitor_analysis.xlsx"
 
-    process_excel_and_extract_data(input_file_path, output_file_path, api_key)
+#     process_excel_and_extract_data(input_file_path, output_file_path, api_key)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
