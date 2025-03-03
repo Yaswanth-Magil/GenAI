@@ -3,7 +3,9 @@ import json
 from collections import defaultdict
 import google.generativeai as genai
 import os
-
+import openpyxl
+from openpyxl import Workbook
+from collections import defaultdict
 
 def aggregate_counts(counts, api_key):
     """Aggregates counts of similar dishes or staff names using Gemini's understanding."""
@@ -113,9 +115,53 @@ Focus on highlighting the strengths of {competitor_name} based on these reviews.
         print(f"Error during competition analysis: {e}")
         return "Error analyzing competition.", "API Error", "Error analyzing competition.", "API Error"
 
+def save_to_excel(data, output_filename="output.xlsx"):
+    """Saves processed data to an Excel file."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Review Analysis"
 
-def process_filtered_rows(input_data, api_key):
-    """Process filtered rows (e.g., positive sentiment reviews only) and extract relevant data."""
+    # Define headers
+    headers = [
+        "Outlet",
+        "Overall Positive Count",
+        "Overall Negative Count",
+        "Overall Neutral Count",
+        "Dish Positive Counts",
+        "Dish Negative Counts",
+        "Staff Positive Counts",
+        "Staff Negative Counts",
+        "Category Positive Counts",
+        "Category Negative Counts",
+        "Positive Reviews",
+        "Negative Reviews"
+    ]
+    ws.append(headers)
+
+    # Write data rows
+    for entry in data:
+        ws.append([
+            entry["outlet"],
+            entry["overall_positive_count"],
+            entry["overall_negative_count"],
+            entry["overall_neutral_count"],
+            str(entry["dish_positive_counts"]),
+            str(entry["dish_negative_counts"]),
+            str(entry["staff_positive_counts"]),
+            str(entry["staff_negative_counts"]),
+            str(entry["category_positive_counts"]),
+            str(entry["category_negative_counts"]),
+            "\n".join(entry["positive_reviews"]),
+            "\n".join(entry["negative_reviews"])
+        ])
+
+    # Save the file
+    wb.save(output_filename)
+    print(f"Output successfully saved to {output_filename}")
+
+
+def process_filtered_rows(input_data, api_key, output_filename="output.xlsx"):
+    """Processes filtered reviews and stores output in an Excel file."""
     competitors = {
         'SPF': 'Chand Palace',
         'Princeton': 'Saravana Bhavan',
@@ -143,12 +189,9 @@ def process_filtered_rows(input_data, api_key):
         positive_reviews_for_summary = []
         negative_reviews_for_summary = []
 
-        competitor_positive_reviews = []
-        competitor_negative_reviews = []
-
         competitor_name = competitors.get(outlet, "Unknown Competitor")
 
-        # Filtered rows processing (assuming we process reviews based on sentiment)
+        # Process reviews
         for row in reviews:
             try:
                 review_text = row.get('review_text')
@@ -195,49 +238,26 @@ def process_filtered_rows(input_data, api_key):
             except Exception as e:
                 print(f"Error processing review row: {e}")
 
-        # Aggregate dish counts
-        dish_positive_counts_aggregated = aggregate_counts(dish_positive_counts, api_key)
-        dish_negative_counts_aggregated = aggregate_counts(dish_negative_counts, api_key)
-        staff_positive_counts_aggregated = aggregate_counts(staff_positive_counts, api_key)
-        staff_negative_counts_aggregated = aggregate_counts(staff_negative_counts, api_key)
-        category_positive_counts_aggregated = aggregate_counts(category_positive_counts, api_key)
-        category_negative_counts_aggregated = aggregate_counts(category_negative_counts, api_key)
-
-        # Create positive and negative summaries
-        positive_summary, pos_summary_justification = summarize_reviews("\n".join(positive_reviews_for_summary), "positive", api_key)
-        negative_summary, neg_summary_justification = summarize_reviews("\n".join(negative_reviews_for_summary), "negative", api_key)
-
-        # Analyze competition
-        my_better, my_better_justification, competitor_better, competitor_better_justification = \
-            analyze_competition("\n".join(positive_reviews_for_summary + negative_reviews_for_summary),  # All my reviews
-                                "\n".join(competitor_positive_reviews + competitor_negative_reviews),  # Competitor reviews
-                                outlet, competitor_name, api_key)
-
         # Collect the results for the outlet
         output_row = {
             'outlet': outlet,
             'overall_positive_count': overall_positive_count,
             'overall_negative_count': overall_negative_count,
             'overall_neutral_count': overall_neutral_count,
-            'dish_positive_counts': dish_positive_counts_aggregated,
-            'dish_negative_counts': dish_negative_counts_aggregated,
-            'staff_positive_counts': staff_positive_counts_aggregated,
-            'staff_negative_counts': staff_negative_counts_aggregated,
-            'category_positive_counts': category_positive_counts_aggregated,
-            'category_negative_counts': category_negative_counts_aggregated,
-            'positive_summary': positive_summary,
-            'pos_summary_justification': pos_summary_justification,
-            'negative_summary': negative_summary,
-            'neg_summary_justification': neg_summary_justification,
-            'my_better': my_better,
-            'my_better_justification': my_better_justification,
-            'competitor_better': competitor_better,
-            'competitor_better_justification': competitor_better_justification
+            'dish_positive_counts': dict(dish_positive_counts),
+            'dish_negative_counts': dict(dish_negative_counts),
+            'staff_positive_counts': dict(staff_positive_counts),
+            'staff_negative_counts': dict(staff_negative_counts),
+            'category_positive_counts': dict(category_positive_counts),
+            'category_negative_counts': dict(category_negative_counts),
+            'positive_reviews': positive_reviews_for_summary,
+            'negative_reviews': negative_reviews_for_summary
         }
 
         output_data.append(output_row)
 
-    return output_data
+    # Save output to Excel
+    save_to_excel(output_data, output_filename)
 
 
 # # Example usage
@@ -252,5 +272,4 @@ def process_filtered_rows(input_data, api_key):
 # }
 
 # api_key = "your_api_key_here"
-# output = process_filtered_rows(filtered_reviews, api_key)
-# print(json.dumps(output, indent=2))
+# process_filtered_rows(filtered_reviews, api_key, "output.xlsx")
