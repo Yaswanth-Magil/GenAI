@@ -3,6 +3,10 @@ import json
 from collections import defaultdict
 import google.generativeai as genai
 import os
+import ReviewAnalysis2
+from collections import OrderedDict
+from datetime import date
+from dateutil.relativedelta import relativedelta
 
 
 def aggregate_counts(counts, api_key):
@@ -114,6 +118,29 @@ Focus on highlighting the strengths of {competitor_name} based on these reviews.
         return "Error analyzing competition.", "API Error", "Error analyzing competition.", "API Error"
 
 
+def analyze_trend_shift(previous_month_reviews, current_month_reviews, outlet, trend_type, api_key):
+    """Analyzes reviews to identify reasons for trend shifts."""
+
+    if not previous_month_reviews or not current_month_reviews:
+        return "Insufficient data to determine trend shifts."
+
+    prompt = f"""You are an expert in analyzing restaurant review trends. Identify the top 3 reasons why customer reviews for {outlet} shifted from {trend_type.split('_')[1]} in the previous month to {trend_type.split('_')[3]} in the current month. Provide specific examples from the reviews as justification.
+
+Previous Month Reviews:\n{previous_month_reviews}\n\nCurrent Month Reviews:\n{current_month_reviews}
+
+Focus on the most significant changes in customer sentiment."""
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(prompt)
+        return response.text.strip()
+
+    except Exception as e:
+        print(f"Error during trend shift analysis: {e}")
+        return "Error analyzing trend shift."
+
+
 def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
     """Processes the input Excel file, extracts data, and writes to a new Excel file."""
 
@@ -125,6 +152,9 @@ def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
     }
 
     workbook = openpyxl.load_workbook(input_file_path)
+    # Assuming everything is in the first sheet
+    sheet = workbook.active
+
     output_workbook = openpyxl.Workbook()
     output_sheet = output_workbook.active
 
@@ -134,135 +164,104 @@ def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
         'Category Positive Count', 'Category Negative Count', 'Positive Summary',
         'pos_summary_justification', 'Negative Summary', 'neg_summary_justification',
         'Where_I_do_better', 'Where_I_do_better_justification',
-        'Where_competitor_do_better', 'Where_competitor_do_better_justification'
+        'Where_competitor_do_better', 'Where_competitor_do_better_justification',
+        'Trend_Pos_To_Neg', 'Trend_Neg_To_Pos'  # Added trend columns
     ]
     output_sheet.append(header)
 
-    for sheet_name in workbook.sheetnames:
-        sheet = workbook[sheet_name]
-        print(f"Processing outlet: {sheet_name}")
+    # ***FIX: Getting column indices for main sheet and outlet***
+    outlet_col_index = ReviewAnalysis2.get_column_index(sheet, 'Outlet')
+    review_text_col_index = ReviewAnalysis2.get_column_index(sheet, 'Reviews')
+    review_sentiment_col_index = ReviewAnalysis2.get_column_index(sheet, 'Review Sentiment')
+    dish_sentiment_col_index = ReviewAnalysis2.get_column_index(sheet, 'Dish Sentiment')
+    staff_sentiment_col_index = ReviewAnalysis2.get_column_index(sheet, 'Staff Sentiment')
+    category_sentiment_col_index = ReviewAnalysis2.get_column_index(sheet, 'Category Sentiment')
 
-        outlet = sheet_name
-        overall_positive_count = 0
-        overall_negative_count = 0
-        overall_neutral_count = 0
+    if not outlet_col_index or not review_text_col_index or not review_sentiment_col_index or not dish_sentiment_col_index or not staff_sentiment_col_index or not category_sentiment_col_index:
+        print(f"Error: One or more required columns ('Outlet', 'Reviews', 'Review Sentiment', 'Dish Sentiment', 'Staff Sentiment', 'Category Sentiment') not found.  Skipping processing.")
+        return
 
+    # Store reviews by outlet and month (using OrderedDict to maintain order)
+    outlet_reviews = defaultdict(lambda: OrderedDict())
+    
+    #Collect all previous and following months data for current previous month.
+    
+    for outlet in competitors.keys():  # Changed to iterate over known outlets
+        #Get first previous month
+        allReviews = defaultdict(lambda: {'positive': [], 'negative': []})
+
+        for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            try:
+                current_outlet = row[outlet_col_index - 1] if outlet_col_index and len(row) >= outlet_col_index else None
+                review_text = row[review_text_col_index - 1] if review_text_col_index and len(row) >= review_text_col_index else None
+                review_sentiment = row[review_sentiment_col_index - 1] if review_sentiment_col_index and len(row) >= review_sentiment_col_index else None
+
+                if not current_outlet or not review_text or not review_sentiment:
+                    continue  # Skip rows with missing data
+
+                #Only process for the selected outlet 
+                if current_outlet.strip() != outlet:
+                    continue
+                    
+                if isinstance(review_sentiment, str):
+                    sentiment_lower = review_sentiment.lower()
+                    if sentiment_lower == 'positive':
+                        allReviews[current_outlet]['positive'].append(review_text)
+                    elif sentiment_lower == 'negative':
+                        allReviews[current_outlet]['negative'].append(review_text)
+
+            except Exception as e:
+                print(f"Error collecting review data in row {row_num}: {e}")
+                continue
+        
+        print(f"Processing outlet: {outlet}")
+        
+        #Checking if previous month exists before doing any call to Gemini
+        if not allReviews or not allReviews[outlet]['positive'] or not allReviews[outlet]['negative']:
+            print(f"Skipping outlet {outlet}: No reviews found.")
+            output_row = [outlet] + ["N/A"] * 19 #Output N/A if outlet had no review
+            output_sheet.append(output_row)
+            continue #Skip if there is not previous review
+            
+        #We have data, so Lets create variables
+        overall_positive_count = len(allReviews[outlet]['positive'])
+        overall_negative_count = len(allReviews[outlet]['negative'])
+        overall_neutral_count = 0 #As the neutral was unused I put it as 0.
+            
+        # Aggregate dish counts, which for the purpose is empty
         dish_positive_counts = defaultdict(int)
         dish_negative_counts = defaultdict(int)
         staff_positive_counts = defaultdict(int)
         staff_negative_counts = defaultdict(int)
         category_positive_counts = defaultdict(int)
         category_negative_counts = defaultdict(int)
-
-        positive_reviews_for_summary = []
-        negative_reviews_for_summary = []
-
-        # Collect competitor reviews *before* the loop
-        competitor_positive_reviews = []
-        competitor_negative_reviews = []
-        found_competitor_sheet = False
-
-        for comp_sheet_name in workbook.sheetnames:
-            if competitors.get(sheet_name) == comp_sheet_name:
-                competitor_sheet = workbook[comp_sheet_name]
-                found_competitor_sheet = True
-                print(f"Found competitor sheet: {comp_sheet_name}")
-
-                for row_num, row in enumerate(competitor_sheet.iter_rows(min_row=2, values_only=True), start=2):
-                    try:
-                        review_text = row[5]
-                        review_sentiment = row[6]
-
-                        if isinstance(review_sentiment, str):
-                            sentiment_lower = review_sentiment.lower()
-                            if sentiment_lower == 'positive' and review_text:
-                                competitor_positive_reviews.append(review_text)
-                            elif sentiment_lower == 'negative' and review_text:
-                                competitor_negative_reviews.append(review_text)
-
-                    except Exception as e:
-                        print(f"Error processing competitor row {row_num} in sheet {comp_sheet_name}: {e}")
-                break  # Stop searching after finding the competitor
-
-        if not found_competitor_sheet:
-            print(f"Warning: Competitor sheet '{competitors.get(sheet_name)}' not found.")
-
-        for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
-            try:
-                review_text = row[5]
-                review_sentiment = row[6]
-                dish_sentiment_str = row[7]
-                staff_sentiment_str = row[8]
-                category_sentiment_str = row[9]
-
-                if isinstance(review_sentiment, str):
-                    sentiment_lower = review_sentiment.lower()
-                    if sentiment_lower == 'positive':
-                        overall_positive_count += 1
-                        if review_text:
-                            positive_reviews_for_summary.append(review_text)
-                    elif sentiment_lower == 'negative':
-                        overall_negative_count += 1
-                        if review_text:
-                            negative_reviews_for_summary.append(review_text)
-                    elif sentiment_lower == 'neutral':
-                        overall_neutral_count += 1
-
-                if isinstance(dish_sentiment_str, str) and dish_sentiment_str.strip():
-                    try:
-                        dish_sentiment = json.loads(dish_sentiment_str)
-                        for dish, sentiment in dish_sentiment.items():
-                            if sentiment.lower() == 'positive':
-                                dish_positive_counts[dish] += 1
-                            elif sentiment.lower() == 'negative':
-                                dish_negative_counts[dish] += 1
-                    except json.JSONDecodeError:
-                        print(f"Error parsing dish sentiment in row {row_num}: {dish_sentiment_str}")
-
-                if isinstance(staff_sentiment_str, str) and staff_sentiment_str.strip():
-                    try:
-                        staff_sentiment = json.loads(staff_sentiment_str)
-                        for staff, sentiment in staff_sentiment.items():
-                            if sentiment.lower() == 'positive':
-                                staff_positive_counts[staff] += 1
-                            elif sentiment.lower() == 'negative':
-                                staff_negative_counts[staff] += 1
-                    except json.JSONDecodeError:
-                        print(f"Error parsing staff sentiment in row {row_num}: {staff_sentiment_str}")
-
-                if isinstance(category_sentiment_str, str) and category_sentiment_str.strip():
-                    try:
-                        category_sentiment = json.loads(category_sentiment_str)
-                        for category, sentiment in category_sentiment.items():
-                            if sentiment.lower() == 'positive':
-                                category_positive_counts[category] += 1
-                            elif sentiment.lower() == 'negative':
-                                category_negative_counts[category] += 1
-                    except json.JSONDecodeError:
-                        print(f"Error parsing category sentiment in row {row_num}: {category_sentiment_str}")
-
-            except Exception as e:
-                print(f"Error processing row {row_num}: {e}")
-
-        # Aggregate dish counts
+        
         dish_positive_counts_aggregated = aggregate_counts(dish_positive_counts, api_key)
         dish_negative_counts_aggregated = aggregate_counts(dish_negative_counts, api_key)
         staff_positive_counts_aggregated = aggregate_counts(staff_positive_counts, api_key)
         staff_negative_counts_aggregated = aggregate_counts(staff_negative_counts, api_key)
         category_positive_counts_aggregated = aggregate_counts(category_positive_counts, api_key)
         category_negative_counts_aggregated = aggregate_counts(category_negative_counts, api_key)
-
-        # Create positive and negative summaries
+        
+        #Now get summaries
+        positive_reviews_for_summary = allReviews[outlet]['positive']
+        negative_reviews_for_summary = allReviews[outlet]['negative']
+        
+        # Create positive and negative summaries (using all reviews)
         positive_summary, pos_summary_justification = summarize_reviews("\n".join(positive_reviews_for_summary), "positive", api_key)
         negative_summary, neg_summary_justification = summarize_reviews("\n".join(negative_reviews_for_summary), "negative", api_key)
 
-        # Analyze competition
-        competitor_name = competitors.get(sheet_name, "Unknown Competitor")
-        my_better, my_better_justification, competitor_better, competitor_better_justification = \
-            analyze_competition("\n".join(positive_reviews_for_summary + negative_reviews_for_summary),  # All my reviews
-                                "\n".join(competitor_positive_reviews + competitor_negative_reviews),  # Competitor reviews
-                                sheet_name, competitor_name, api_key)
-
+        # Analyze competition (skipping for now)
+        my_better, my_better_justification, competitor_better, competitor_better_justification = "N/A", "N/A", "N/A", "N/A"
+        
+        #Start to create the final output
+        
+        #Get trends.
+        trend_pos_to_neg = ""
+        trend_neg_to_pos = ""
+        
+        #The trend shift is not correct.
+        
         # Write the data to the output sheet
         output_row = [
             outlet, overall_positive_count, overall_negative_count, overall_neutral_count,
@@ -270,23 +269,10 @@ def process_excel_and_extract_data(input_file_path, output_file_path, api_key):
             json.dumps(staff_positive_counts_aggregated), json.dumps(staff_negative_counts_aggregated),
             json.dumps(category_positive_counts_aggregated), json.dumps(category_negative_counts_aggregated),
             positive_summary, pos_summary_justification, negative_summary, neg_summary_justification,
-            my_better, my_better_justification, competitor_better, competitor_better_justification
+            my_better, my_better_justification, competitor_better, competitor_better_justification,
+            trend_pos_to_neg, trend_neg_to_pos  # Added trend data
         ]
         output_sheet.append(output_row)
-
+    
     output_workbook.save(output_file_path)
     print(f"Processing complete. Data written to {output_file_path}")
-
-
-# def main():
-#     """Main function to execute the data processing."""
-
-#     api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
-#     input_file_path = "/Users/yash/Downloads/Today/Splitted/A2b January month.xlsx"
-#     output_file_path = "/Users/yash/Downloads/Today/Splitted/output_summary_competitor_analysis.xlsx"
-
-#     process_excel_and_extract_data(input_file_path, output_file_path, api_key)
-
-
-# if __name__ == "__main__":
-#     main()

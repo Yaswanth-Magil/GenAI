@@ -18,8 +18,8 @@ def main():
     genai.configure(api_key=api_key)
 
     # Define file paths
-    input_excel_file = "/Users/yash/Downloads/Today/Splitted/GenAI/input.xlsx"  # Path to your input Excel file
-    output_excel_file = "/Users/yash/Downloads/Today/Splitted/GenAI/output.xlsx"  # Path for the aggregated output Excel file
+    input_excel_file = "/Users/yash/Downloads/Today/Splitted/GenAI/input_trend.xlsx"  # Path to your input Excel file
+    output_excel_file = "/Users/yash/Downloads/Today/Splitted/GenAI/output_trend.xlsx"  # Path for the aggregated output Excel file
 
 
     # Process Reviews (Sentiment Analysis)

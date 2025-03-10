@@ -54,14 +54,8 @@ def get_column_index(sheet, column_name):
 
 
 def process_reviews(xlsx_file_path):
-    """Processes reviews from all sheets in an Excel file and adds sentiment and extractions, considering only the previous month's data."""
+    """Processes reviews from all sheets in an Excel file and adds sentiment and extractions."""
     workbook = openpyxl.load_workbook(xlsx_file_path)
-
-    # Get the previous month (integer representation)
-    today = date.today()
-    first = today.replace(day=1)
-    lastMonth = first - relativedelta(months=1)
-    previous_month = lastMonth.month # Example: 2 for February
 
     for sheet in workbook.worksheets:
         sheet_name = sheet.title
@@ -73,17 +67,10 @@ def process_reviews(xlsx_file_path):
         staff_sentiment_column_index = get_column_index(sheet, 'Staff Sentiment')
         category_sentiment_column_index = get_column_index(sheet, 'Category Sentiment')
         reviews_column_index = get_column_index(sheet, 'Reviews')
-        month_column_index = get_column_index(sheet, 'Month')  # Get the 'Month' column index
 
         if not reviews_column_index:
             print(f"Error: 'Reviews' column not found in sheet {sheet_name}. Skipping...")
             continue
-
-        if not month_column_index:
-            print(f"Warning: 'Month' column not found in sheet {sheet_name}.  Processing all rows (no filtering).")
-            process_all_rows = True # Flag to indicate that all rows should be processed if month column is not found
-        else:
-            process_all_rows = False  # Flag to indicate the need to filter based on month.
 
         # Add columns if they don't exist
         next_available_column = sheet.max_column + 1
@@ -108,30 +95,9 @@ def process_reviews(xlsx_file_path):
             category_sentiment_column_index = next_available_column
             next_available_column += 1
 
+
         for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
             review = row[reviews_column_index - 1] if len(row) >= reviews_column_index else None
-            month_value = row[month_column_index - 1] if not process_all_rows and len(row) >= month_column_index else None  #Get the month value from the row
-
-            if not process_all_rows:
-                try:
-                    #Check the month before processing
-                    if month_value is not None:
-                        try:
-                            month = int(month_value) #Ensure month is converted to Integer for proper comparison.
-                        except ValueError:
-                            print(f"Warning: Could not convert month value '{month_value}' to integer in sheet {sheet_name} row {row_num}. Skipping row.")
-                            continue # Skip to the next row if conversion to int fails
-
-                        if month != previous_month: #Check if the month matches
-                            print(f"Skipping row {row_num} in sheet {sheet_name} because month {month} is not the previous month ({previous_month}).")
-                            continue #Skip to the next row if the month does not match
-                    else:
-                        print(f"Warning: Month value is None in sheet {sheet_name} row {row_num}.  Skipping row.")
-                        continue # Skip to the next row if month_value is None
-
-                except Exception as e:
-                     print(f"Error while checking the Month in sheet {sheet_name} row {row_num}: {e}")
-                     continue  # Skip to the next row if any error occurs while checking the month.
 
             if review:
                 try:
@@ -196,25 +162,6 @@ def process_reviews(xlsx_file_path):
 
             else:
                 print("No review text found. Skipping...\n")
-                continue
 
     workbook.save(xlsx_file_path)
     print(f"Sentiment analysis and extraction completed. Updated file: {xlsx_file_path}")
-
-
-# def main():
-#     """Main function to execute the sentiment analysis."""
-#     # api_key = os.environ.get("GEMINI_API_KEY")
-#     api_key ="AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
-#     # if not api_key:
-#     #     print("Error: GEMINI_API_KEY environment variable not set.")
-#     #     return
-
-#     genai.configure(api_key=api_key)
-
-#     xlsx_file_path = "/Users/yash/Downloads/Today/Splitted/Princeton.xlsx"
-#     process_reviews(xlsx_file_path)
-
-
-# if __name__ == "__main__":
-#     main()
