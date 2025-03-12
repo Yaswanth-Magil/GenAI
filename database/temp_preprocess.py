@@ -419,6 +419,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
             if month_to_process == months_to_process[-1]:  # Check if it's the latest month
                  trend_note = generate_trend_note(outlet, review_data_for_trend, api_key)
 
+                 
             if existing_record:
                 # Update the existing record
                 update_query = """
