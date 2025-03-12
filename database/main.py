@@ -26,7 +26,7 @@ def main():
         print("Starting Preprocessing...")
 
         # Set the month to process (This is where you can adjust the latest month)
-        month_to_process = 1  # Change this to the latest month you want to process
+        month_to_process = 2  # Change this to the latest month you want to process
 
         preprocess.process_reviews_and_store_data(api_key, month_to_process=month_to_process)  # aggregate and store data in new table
         print("Preprocessing Complete.")

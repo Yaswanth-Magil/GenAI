@@ -44,7 +44,9 @@ columns_to_fetch = [
     'staff_positive_counts',
     'staff_negative_counts',
     'category_positive_counts',
-    'category_negative_counts'
+    'category_negative_counts',
+    'trend_note',
+    'category_note'
 ]
 
 
@@ -393,6 +395,13 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
             run.font.color.rgb = RGBColor(0, 0, 0)
             run.font.bold = True
         document.add_picture(chart_img_path, width=Inches(6), height=Inches(5))
+
+        # Add Trend Note
+        trend_note = data[-1][1].get('trend_note')  # Access 'trend_note' from the latest month
+        if trend_note:
+            document.add_paragraph(f"Trend Note: {trend_note}")
+        else:
+            document.add_paragraph("No trend note available.")
     else:
         document.add_paragraph("Could not generate sentiment trend chart.")
 
@@ -417,6 +426,13 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
             run.font.color.rgb = RGBColor(0, 0, 0)
             run.font.bold = True
         document.add_picture(plot_filename, width=Inches(6), height=Inches(5))
+
+        #Add Category Note
+        category_note = data[-1][1].get('category_note') #accessing from the latest month
+        if category_note:
+            document.add_paragraph(f"Category Note: {category_note}")
+        else:
+            document.add_paragraph("No category note available")
     else:
         document.add_paragraph("Could not generate category chart.")
 
@@ -534,6 +550,6 @@ if __name__ == "__main__":
 
     if data is not None:
         create_word_document(outlet_value, review_month_value, data,
-                             output_filename=f"{outlet_value}_{review_month_value}_summary.docx")
+                             output_filename=f"{outlet_value}_{review_month_value}_summary New.docx")
     else:
         print("Failed to fetch data. Check credentials and query.")
