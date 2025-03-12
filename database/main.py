@@ -4,7 +4,7 @@ import time
 import traceback
 import ReviewAnalysis
 import preprocess
-
+# import temp_preprocess
 def main():
     """
     Main function to orchestrate the review analysis process.
@@ -17,7 +17,6 @@ def main():
 
         # 2. Call ReviewAnalysis to tag all non-tagged reviews with sentiment analysis
 
-
         # print("Starting Review Analysis...")
         # ReviewAnalysis.process_reviews_in_db(api_key)  # Tag reviews in the database
         # print("Review Analysis Complete.")
@@ -25,7 +24,11 @@ def main():
 
         # 3. Call Preprocess to generate and populate table for further reporting.
         print("Starting Preprocessing...")
-        preprocess.process_reviews_and_store_data(api_key)  # aggregate and store data in new table
+
+        # Set the month to process (This is where you can adjust the latest month)
+        month_to_process = 2  # Change this to the latest month you want to process
+
+        preprocess.process_reviews_and_store_data(api_key, month_to_process=month_to_process)  # aggregate and store data in new table
         print("Preprocessing Complete.")
 
         print("All operations completed successfully.")

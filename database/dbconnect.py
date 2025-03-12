@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 # Read the Excel file (make sure openpyxl is installed for .xlsx files)
-df = pd.read_excel('/Users/yash/Downloads/Today/Splitted/GenAI/A2b Feb month.xlsx', engine='openpyxl')
+df = pd.read_excel('/Users/yash/Downloads/Today/Splitted/GenAI/Previous month data.xlsx', engine='openpyxl')
 
 # Create a SQLAlchemy engine for a local MySQL database.
 # Replace 'username', 'password', 'localhost', and 'database_name' with your details.
