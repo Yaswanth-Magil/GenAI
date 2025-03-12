@@ -14,7 +14,9 @@ import numpy as np
 import json
 from docx.shared import Pt
 from docx.enum.style import WD_STYLE_TYPE
-
+import os
+import subprocess
+import logging
 # Database credentials - Replace with your actual credentials
 db_host = "localhost"
 db_user = "root"
@@ -540,6 +542,12 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     print(f"Word document '{output_filename}' created successfully.")
 
 
+def open_word_file(word_file_path):
+    if os.path.exists(word_file_path):
+        subprocess.run(['open', word_file_path])
+    else:
+        logging.error(f"File '{word_file_path}' does not exist.")
+
 # --- Main execution ---
 if __name__ == "__main__":
     outlet_value = "South Plainfield"  # Replace with the desired outlet value
@@ -547,9 +555,10 @@ if __name__ == "__main__":
     num_months = 3 # setting it to three.
 
     data = fetch_data_from_db(outlet_value, review_month_value, num_months=num_months)
-
+    path = f"A2B_{outlet_value}_{review_month_value}.docx"
     if data is not None:
-        create_word_document(outlet_value, review_month_value, data,
-                             output_filename=f"{outlet_value}_{review_month_value}_summary New.docx")
+       word =  create_word_document(outlet_value, review_month_value, data,
+                             output_filename=path)
+       open_word_file(path)
     else:
         print("Failed to fetch data. Check credentials and query.")
