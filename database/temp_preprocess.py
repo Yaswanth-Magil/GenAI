@@ -131,20 +131,11 @@ Focus on highlighting the strengths of {competitor_name} based on these reviews.
         return "Error analyzing competition.", "API Error", "Error analyzing competition.", "API Error"
 
 
-def analyze_trend_shift(previous_month_reviews, current_month_reviews, outlet, trend_type, api_key):
+def analyze_trend_shift(previous_month_reviews, current_month_reviews, outlet, previous_sentiment, current_sentiment, api_key):
     """Analyzes reviews to identify reasons for trend shifts."""
 
     if not previous_month_reviews or not current_month_reviews:
         return "Insufficient data to determine trend shifts."
-
-    # Modify trend_type handling to prevent IndexError
-    trend_parts = trend_type.split('_')
-    if len(trend_parts) < 4:
-        print(f"Warning: Invalid trend_type format: {trend_type}. Skipping trend analysis.")
-        return "Invalid trend_type format."
-
-    previous_sentiment = trend_parts[1]
-    current_sentiment = trend_parts[3]
 
     prompt = f"""You are an expert in analyzing restaurant review trends. Identify the top 3 reasons why customer reviews for {outlet} shifted from {previous_sentiment} in the previous month to {current_sentiment} in the current month. Provide specific examples from the reviews as justification.
 
@@ -264,10 +255,10 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
     """Processes reviews from the database and stores aggregated data in output_dummy_2, including trend and category notes."""
 
     competitors = {
-        'South Plainfield': 'Chand Palace', #Competitors to Add or Remove.
-        # 'Princeton': 'Saravana Bhavan', #Competitors to Add or Remove.
-        # 'Parsippany': 'Sangeetha', #Competitors to Add or Remove.
-        # 'Chicago': 'Udupi Palace' #Competitors to Add or Remove.
+        'South Plainfield': 'Chand Palace',  # Competitors to Add or Remove.
+        # 'Princeton': 'Saravana Bhavan',  # Competitors to Add or Remove.
+        # 'Parsippany': 'Sangeetha',      # Competitors to Add or Remove.
+        # 'Chicago': 'Udupi Palace'      # Competitors to Add or Remove.
     }
 
     try:
@@ -296,10 +287,17 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
             # Get the last 3 months, making sure to include the manually adjustable month
             months_to_process = sorted(available_months[:3])  # Ensure we process in ascending order
 
+            print(f"Months to process: {months_to_process}")
+
             # Prepare to store review data for trend analysis
             review_data_for_trend = []
 
             print(f"Processing month: {month_to_process}")  # Added printing of the Processing Month
+
+            # Check if the record already exists BEFORE potentially skipping
+            check_query = "SELECT * FROM output_dummy_2 WHERE outlet = %s AND review_month = %s"
+            cursor.execute(check_query, (outlet, month_to_process))
+            existing_record = cursor.fetchone()
 
             allReviews = defaultdict(lambda: {'positive': [], 'negative': []})
             dish_positive_counts = defaultdict(int)
@@ -398,31 +396,56 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
 
             my_better, my_better_justification, competitor_better, competitor_better_justification = analyze_competition(allReviews[outlet]['positive'] + allReviews[outlet]['negative'], allCompetitorReviews[competitor]['positive'] + allCompetitorReviews[competitor]['negative'], outlet, competitor, api_key)
 
+            # Trend Shift Analysis
+            trend_pos_to_neg = ""
+            trend_neg_to_pos = ""
+
+            # Added trend shift logic here
+            if len(months_to_process) > 1 and month_to_process == months_to_process[-1]:  # Ensure we have at least two months and it's the latest
+                previous_month = months_to_process[-2]
+                print(f"Analyzing trend shift from {previous_month} to {month_to_process}")
+
+                # Retrieve the previous month's reviews
+                previous_month_reviews = get_month_reviews(cursor, outlet, previous_month, review_text_col_name, review_sentiment_col_name)
+                current_month_reviews = get_month_reviews(cursor, outlet, month_to_process, review_text_col_name, review_sentiment_col_name)
+
+                # Analyze shift from positive to negative
+                if previous_month_reviews['positive'] and current_month_reviews['negative']:
+                    trend_pos_to_neg = analyze_trend_shift(
+                        "\n".join(previous_month_reviews['positive']),
+                        "\n".join(current_month_reviews['negative']),
+                        outlet, "positive", "negative", api_key
+                    )
+                    print(f"Trend from Positive to Negative: {trend_pos_to_neg}")
+
+                # Analyze shift from negative to positive
+                if previous_month_reviews['negative'] and current_month_reviews['positive']:
+                    trend_neg_to_pos = analyze_trend_shift(
+                        "\n".join(previous_month_reviews['negative']),
+                        "\n".join(current_month_reviews['positive']),
+                        outlet, "negative", "positive", api_key
+                    )
+                    print(f"Trend from Negative to Positive: {trend_neg_to_pos}")
+
             # Generate the category note
             category_note = generate_category_note(outlet, category_positive_counts_aggregated, category_negative_counts_aggregated, api_key)
-            # Check if the record already exists
-            check_query = "SELECT * FROM output_dummy_2 WHERE outlet = %s AND review_month = %s"
-            cursor.execute(check_query, (outlet, month_to_process))
-            existing_record = cursor.fetchone()
 
-             # Prepare the data for trend analysis for current month
-
+            # Prepare the data for trend analysis for current month
             review_data_for_trend.append({
-                    'review_month': month_to_process,
-                    'overall_positive_count': overall_positive_count,
-                    'overall_negative_count': overall_negative_count,
-                    'overall_neutral_count': overall_neutral_count
-                })
+                'review_month': month_to_process,
+                'overall_positive_count': overall_positive_count,
+                'overall_negative_count': overall_negative_count,
+                'overall_neutral_count': overall_neutral_count
+            })
 
-            # Generate the trend note only if the month is the manually adjustable month. Only do this if the month matches
+            # Generate the trend note only if the month is the manually adjustable month.
             trend_note = ""  # Initialize to an empty string
             if month_to_process == months_to_process[-1]:  # Check if it's the latest month
-                 trend_note = generate_trend_note(outlet, review_data_for_trend, api_key)
+                trend_note = generate_trend_note(outlet, review_data_for_trend, api_key)
 
-                 
             if existing_record:
                 # Update the existing record
-                update_query = """
+                update_query = f"""
                     UPDATE output_dummy_2
                     SET overall_positive_count = %s, overall_negative_count = %s, overall_neutral_count = %s,
                         dish_positive_counts = %s, dish_negative_counts = %s, staff_positive_counts = %s,
@@ -440,15 +463,20 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                     json.dumps(category_positive_counts_aggregated), json.dumps(category_negative_counts_aggregated),
                     positive_summary, pos_summary_justification, negative_summary, neg_summary_justification,
                     my_better, my_better_justification, competitor_better, competitor_better_justification,
-                    "", "", trend_note, category_note,
+                    trend_pos_to_neg, trend_neg_to_pos, trend_note, category_note,
                     outlet, month_to_process
                 )
-                cursor.execute(update_query, data_to_update)
-                cnx.commit()
-                print(f"Data for outlet {outlet} and month {month_to_process} updated successfully.")
+                try:
+                    cursor.execute(update_query, data_to_update)
+                    cnx.commit()
+                    print(f"Data for outlet {outlet} and month {month_to_process} updated successfully.")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+                    traceback.print_exc()
+                    
             else:
                 # Prepare the SQL query for insertion
-                update_query = """
+                insert_query = f"""
                     INSERT INTO output_dummy_2 (
                         outlet, review_month, overall_positive_count, overall_negative_count, overall_neutral_count,
                         dish_positive_counts, dish_negative_counts, staff_positive_counts, staff_negative_counts,
@@ -457,10 +485,8 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                         where_i_do_better, where_i_do_better_justification,
                         where_competitor_do_better, where_competitor_do_better_justification,
                         trend_pos_to_neg, trend_neg_to_pos, trend_note, category_note
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-
-                # Prepare data for insertion
                 data_to_insert = (
                     outlet, month_to_process, overall_positive_count, overall_negative_count, overall_neutral_count,
                     json.dumps(dish_positive_counts_aggregated), json.dumps(dish_negative_counts_aggregated),
@@ -468,15 +494,18 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                     json.dumps(category_positive_counts_aggregated), json.dumps(category_negative_counts_aggregated),
                     positive_summary, pos_summary_justification, negative_summary, neg_summary_justification,
                     my_better, my_better_justification, competitor_better, competitor_better_justification,
-                    "", "", trend_note, category_note
+                    trend_pos_to_neg, trend_neg_to_pos,
+                    trend_note, category_note
                 )
 
                 # Execute the SQL query
-                cursor.execute(update_query, data_to_insert)
-                cnx.commit()
-
-                print(f"Data for outlet {outlet} and month {month_to_process} inserted successfully.")
-
+                try:
+                    cursor.execute(insert_query, data_to_insert)
+                    cnx.commit()
+                    print(f"Data for outlet {outlet} and month {month_to_process} inserted successfully.")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+                    traceback.print_exc()
         print("All reviews processed and inserted into output_dummy_2.")
 
     except mysql.connector.Error as err:

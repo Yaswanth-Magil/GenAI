@@ -65,7 +65,7 @@ def process_reviews_in_db(api_key):  # Pass api_key to process_reviews_in_db
         cursor = cnx.cursor()
 
         # SQL query to select rows where review_sentiment is NULL (or empty)
-        select_reviews_query = "SELECT `Outlet`, `review_month`, `Year`, reviews FROM reviews_trend_dummy WHERE `review_month` = 2"  # Limit to 1000 for safety
+        select_reviews_query = "SELECT `Outlet`, `review_month`, `Year`, reviews FROM reviews_trend_dummy WHERE `review_month` = 1"  # Limit to 1000 for safety
 
         cursor.execute(select_reviews_query)
         review_rows = cursor.fetchall()
