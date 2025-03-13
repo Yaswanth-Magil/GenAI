@@ -91,7 +91,6 @@ Format:
 [Key Concept]: [Observation or feature]. and Task: Summarize positive Restaurant Reviews
 
 Example:
-Positive Review Summary 
 Delicious and Authentic South Indian Food: The food quality consistently receives high praise, with reviewers highlighting the authentic taste and deliciousness of various South Indian dishes. 
 Wide Variety of Menu Options, Including Northern and Southern Indian Dishes: The restaurant offers a diverse menu, catering to different tastes and preferences, spanning both North and South Indian cuisines. 
 Exceptional Service, Particularly by Specific Staff Members: Several reviewers specifically mention the outstanding service provided by staff members like Niyas, Abdul, Farzi, and Shasny, praising their attentiveness, recommendations, and accommodating nature. 
@@ -268,7 +267,7 @@ def generate_trend_note(outlet, review_data, api_key):
 Your note should be formatted like the example below, comparing the percentages of positive, negative, and neutral reviews across the months. Identify any significant peaks or dips in sentiment.
 
 Example Note:
-"Positive reviews consistently form the majority across all months. Negative feedback peaks in November at 27.1% before decreasing in December at 17.5% and increasing in January to 11.8%, while the overall sentiment depicted in the pie chart shows 86.3% positive, 11.8% negative, and 2.0% neutral."
+"Note: Positive reviews consistently form the majority across all months. Negative feedback peaks in November at 27.1% before decreasing in December at 17.5% and increasing in January to 11.8%, while the overall sentiment depicted in the pie chart shows 86.3% positive, 11.8% negative, and 2.0% neutral."
 
 Here is the review data:
 """
@@ -292,7 +291,7 @@ def generate_category_note(outlet, category_positive_counts_aggregated, category
 Your note should be formatted like the example below, mentioning the categories with the highest positive and negative mentions, as well as any categories that may be a point of concern (low positive feedback).
 
 Example Note:
-"Overall Experience and Food Quality received the highest positive mentions (33). However, Overall Experience also had the most negative feedback (12). Value for Money received the lowest positive mentions (3), this category is a point of concern. Staff Friendliness and Service also scored well with positive feedback. All categories, except for Value for Money, received more positive than negative feedback."
+"Note: Overall Experience and Food Quality received the highest positive mentions (33). However, Overall Experience also had the most negative feedback (12). Value for Money received the lowest positive mentions (3), this category is a point of concern. Staff Friendliness and Service also scored well with positive feedback. All categories, except for Value for Money, received more positive than negative feedback."
 
 Here is the category sentiment data:
 Positive: {json.dumps(category_positive_counts_aggregated)}

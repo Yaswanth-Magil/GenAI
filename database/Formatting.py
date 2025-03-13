@@ -17,6 +17,10 @@ from docx.enum.style import WD_STYLE_TYPE
 import os
 import subprocess
 import logging
+import re
+#from docx.enum.text import WD_BULLET_TYPE #Removed this as this import gives error
+#from docx.enum.text import WD_BREAK_TYPE
+
 # Database credentials - Replace with your actual credentials
 db_host = "localhost"
 db_user = "root"
@@ -52,6 +56,41 @@ columns_to_fetch = [
 ]
 
 
+def process_text(document, text):
+    """Processes text for bold patterns and bullet points."""
+
+    # Split the text into paragraphs
+    paragraphs = text.splitlines()
+
+    for paragraph_text in paragraphs:
+        if paragraph_text.strip() == "":
+            continue  # Skip empty paragraphs
+
+        # Check for bullet points
+        bullet_match = re.match(r"^\*\s+(.+)", paragraph_text)  # Match "* text"
+        bullet_match2 = re.match(r"^\s*\*\s+(.+)", paragraph_text)  # Match " * text" with spaces
+
+        if bullet_match or bullet_match2:
+            bullet_text = bullet_match.group(1) if bullet_match else bullet_match2.group(1)
+            p = document.add_paragraph("", style='List Bullet')
+
+            # Process bold formatting within bullet points
+            parts = re.split(r"(\*\*[^*]+\*\*)", bullet_text)
+            for part in parts:
+                run = p.add_run(part[2:-2] if part.startswith("**") and part.endswith("**") else part)
+                if part.startswith("**") and part.endswith("**"):
+                    run.bold = True
+
+        else:
+            p = document.add_paragraph()
+            parts = re.split(r"(\*\*[^*]+\*\*)", paragraph_text)
+
+            for part in parts:
+                run = p.add_run(part[2:-2] if part.startswith("**") and part.endswith("**") else part)
+                if part.startswith("**") and part.endswith("**"):
+                    run.bold = True
+
+
 def fetch_data_from_db(outlet, review_month, num_months=3):
     """Fetches data from the database for a specified number of months."""
     data = []
@@ -73,7 +112,7 @@ def fetch_data_from_db(outlet, review_month, num_months=3):
                 current_month = current_month + 12 # rollover to previous year december
 
             # Construct the SQL query
-            column_names = ", ".join(columns_to_fetch)  # Join column names into a string
+            column_names = ", ".join(columns_to_fetch) # Join column names into a string
             sql = f"SELECT {column_names} FROM {table_name} WHERE outlet = %s AND review_month = %s"
             val = (outlet, current_month)
             mycursor.execute(sql, val)
@@ -373,7 +412,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     footer_paragraph.text = ""
 
     # --- DOCUMENT BODY ---
-    title = document.add_heading(f"A2B{outlet} GenAI Insights", level=1)
+    title = document.add_heading(f"A2B {outlet} GenAI Insights", level=1)
     title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     for run in title.runs:
         run.font.name = 'Times New Roman'
@@ -401,9 +440,13 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
         # Add Trend Note
         trend_note = data[-1][1].get('trend_note')  # Access 'trend_note' from the latest month
         if trend_note:
-            document.add_paragraph(f"Trend Note: {trend_note}")
+            p = document.add_paragraph()
+            run = p.add_run(f"Trend Note: {trend_note}")
+            run.bold = True
+
         else:
             document.add_paragraph("No trend note available.")
+
     else:
         document.add_paragraph("Could not generate sentiment trend chart.")
 
@@ -432,7 +475,10 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
         #Add Category Note
         category_note = data[-1][1].get('category_note') #accessing from the latest month
         if category_note:
-            document.add_paragraph(f"Category Note: {category_note}")
+            p = document.add_paragraph()
+            run = p.add_run(f"Category Note: {category_note}")
+            run.bold = True
+        
         else:
             document.add_paragraph("No category note available")
     else:
@@ -453,8 +499,9 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
         run.font.bold = True
     # For multi-month analysis, you can concatenate or summarize positive summaries across months
     # For simplicity, we'll use the positive summary from the latest month
+
     if data:
-        document.add_paragraph(str(data[-1][1]['positive_summary']) if data[-1][1]['positive_summary'] else "No data available")
+        process_text(document, str(data[-1][1]['positive_summary']) if data[-1][1]['positive_summary'] else "No data available")
     else:
         document.add_paragraph("No data available")
 
@@ -466,7 +513,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     # For multi-month analysis, you can concatenate or summarize negative summaries across months
     # For simplicity, we'll use the negative summary from the latest month
     if data:
-        document.add_paragraph(str(data[-1][1]['negative_summary']) if data[-1][1]['negative_summary'] else "No data available")
+        process_text(document, str(data[-1][1]['negative_summary']) if data[-1][1]['negative_summary'] else "No data available")
     else:
         document.add_paragraph("No data available")
 
@@ -486,7 +533,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     # For multi-month analysis, you can analyze trends over time
     # For simplicity, we'll use trend analysis from the latest month
     if data:
-        document.add_paragraph(str(data[-1][1]['trend_pos_to_neg']) if data[-1][1]['trend_pos_to_neg'] else "No data available")
+        process_text(document, str(data[-1][1]['trend_pos_to_neg']) if data[-1][1]['trend_pos_to_neg'] else "No data available")
     else:
         document.add_paragraph("No data available")
 
@@ -498,7 +545,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     # For multi-month analysis, you can analyze trends over time
     # For simplicity, we'll use trend analysis from the latest month
     if data:
-        document.add_paragraph(str(data[-1][1]['trend_neg_to_pos']) if data[-1][1]['trend_neg_to_pos'] else "No data available")
+        process_text(document, str(data[-1][1]['trend_neg_to_pos']) if data[-1][1]['trend_neg_to_pos'] else "No data available")
     else:
         document.add_paragraph("No data available")
 
@@ -518,7 +565,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     # For multi-month analysis, you can analyze how competitive advantages change over time
     # For simplicity, we'll use competitor analysis from the latest month
     if data:
-        document.add_paragraph(str(data[-1][1]['where_i_do_better']) if data[-1][1]['where_i_do_better'] else "No data available")
+        process_text(document, str(data[-1][1]['where_i_do_better']) if data[-1][1]['where_i_do_better'] else "No data available")
     else:
         document.add_paragraph("No data available")
 
@@ -527,16 +574,17 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
         run.font.name = 'Times New Roman'
         run.font.color.rgb = RGBColor(0, 0, 0)
         run.font.bold = True
-    # For multi-month analysis, you can analyze how competitor advantages change over time
+    # For multi-month analysis, you can analyze how competitive advantages change over time
     # For simplicity, we'll use competitor analysis from the latest month
     if data:
-        document.add_paragraph(str(data[-1][1]['where_competitor_do_better']) if data[-1][1]['where_competitor_do_better'] else "No data available")
+        process_text(document, str(data[-1][1]['where_competitor_do_better']) if data[-1][1]['where_competitor_do_better'] else "No data available")
     else:
         document.add_paragraph("No data available")
 
     # Set justify alignment for all paragraphs in the document
     for paragraph in document.paragraphs:
         paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.JUSTIFY
+
 
     document.save(output_filename)
     print(f"Word document '{output_filename}' created successfully.")
