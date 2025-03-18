@@ -335,10 +335,10 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
     """Processes reviews from the database and stores aggregated data in output_dummy_2, including trend and category notes."""
 
     competitors = {
-        # 'South Plainfield': 'Chand Palace',  # Competitors to Add or Remove.
+        'South Plainfield': 'Chand Palace',  # Competitors to Add or Remove.
         # 'Princeton': 'Saravana Bhavan',  # Competitors to Add or Remove.
         # 'Parsippany': 'Sangeetha',      # Competitors to Add or Remove.
-        'Chicago': 'Udupi Palace'      # Competitors to Add or Remove.
+        # 'Chicago': 'Udupi Palace'      # Competitors to Add or Remove.
     }
 
     try:
@@ -346,21 +346,24 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
         cursor = cnx.cursor()
 
         # ***FIX: Getting column indices for main sheet and outlet***
-        outlet_col_name = 'outlet'
-        year = 'year'
-        review_text_col_name = 'reviews'
+        outlet_col_name = 'Outlet'
+        source_col_name = 'Source'
+        date_col_name = 'Date'
+        review_month_col_name = 'review_month'
+        year_col_name = 'Year'
+        review_text_col_name = 'Reviews'
         review_sentiment_col_name = 'review_sentiment'
         dish_sentiment_col_name = 'dish_sentiment'
         staff_sentiment_col_name = 'staff_sentiment'
         category_sentiment_col_name = 'category_sentiment'
-        month_col_name = 'review_month'
+
 
         for outlet, competitor in competitors.items():
             print(f"Processing outlet: {outlet} and competitor: {competitor}")
 
             # Get all reviews for the outlet for the last 3 months
             # First, get all months available
-            cursor.execute(f"SELECT DISTINCT {month_col_name} FROM reviews_trend_dummy WHERE {outlet_col_name} = %s ORDER BY {month_col_name} DESC", (outlet,))
+            cursor.execute(f"SELECT DISTINCT `{review_month_col_name}` FROM reviews_trend_dummy WHERE `{outlet_col_name}` = %s ORDER BY `{review_month_col_name}` DESC", (outlet,))
             available_months = [row[0] for row in cursor.fetchall()]
 
             # Filter available_months to only include months less than or equal to the adjustable month
@@ -390,10 +393,10 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
             allCompetitorReviews = defaultdict(lambda: {'positive': [], 'negative': []})
 
             select_query = f"""
-                SELECT {outlet_col_name}, {review_text_col_name}, {review_sentiment_col_name},
-                       {dish_sentiment_col_name}, {staff_sentiment_col_name}, {category_sentiment_col_name}, {month_col_name}
+                SELECT `{outlet_col_name}`,`{review_text_col_name}`, `{review_sentiment_col_name}`,
+                       `{dish_sentiment_col_name}`, `{staff_sentiment_col_name}`, `{category_sentiment_col_name}`, `{review_month_col_name}`, `{year_col_name}`
                 FROM reviews_trend_dummy
-                WHERE ({outlet_col_name} = %s OR {outlet_col_name} = %s) AND {month_col_name} = %s
+                WHERE (`{outlet_col_name}` = %s OR `{outlet_col_name}` = %s) AND `{review_month_col_name}` = %s
             """
 
             cursor.execute(select_query, (outlet, competitor, month_to_process))
@@ -401,31 +404,30 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
 
             for row in review_rows:
                 try:
-                    current_outlet, review_text, review_sentiment, dish_sentiment_json, staff_sentiment_json, category_sentiment_json, month = row
-
+                    Outlet,Reviews,review_sentiment,dish_sentiment,staff_sentiment,category_sentiment,review_month,Year  = row
                     if isinstance(review_sentiment, str):
                         sentiment_lower = review_sentiment.lower()
 
-                        if current_outlet == outlet:
+                        if Outlet == outlet:
                             if sentiment_lower == 'positive':
-                                allReviews[current_outlet]['positive'].append(review_text)
+                                allReviews[Outlet]['positive'].append(Reviews)
 
                             elif sentiment_lower == 'negative':
-                                allReviews[current_outlet]['negative'].append(review_text)
+                                allReviews[Outlet]['negative'].append(Reviews)
                             elif sentiment_lower != 'positive' and sentiment_lower != 'negative':
-                                allReviews[current_outlet]['neutral'].append(review_text)
+                                allReviews[Outlet]['neutral'].append(Reviews)
 
 
-                        elif current_outlet == competitor:
+                        elif Outlet == competitor:
                             if sentiment_lower == 'positive':
-                                allCompetitorReviews[current_outlet]['positive'].append(review_text)
+                                allCompetitorReviews[Outlet]['positive'].append(Reviews)
                             elif sentiment_lower == 'negative':
-                                allCompetitorReviews[current_outlet]['negative'].append(review_text)
+                                allCompetitorReviews[Outlet]['negative'].append(Reviews)
 
                         try:
-                            dish_sentiment = json.loads(dish_sentiment_json) if dish_sentiment_json else {}
-                            staff_sentiment = json.loads(staff_sentiment_json) if staff_sentiment_json else {}
-                            category_sentiment = json.loads(category_sentiment_json) if category_sentiment_json else {}
+                            dish_sentiment = json.loads(str(dish_sentiment)) if dish_sentiment else {}
+                            staff_sentiment = json.loads(str(staff_sentiment)) if staff_sentiment else {}
+                            category_sentiment = json.loads(str(category_sentiment)) if category_sentiment else {}
 
                         except (json.JSONDecodeError, TypeError) as e:
                             print(f"Failed to decode JSON: {e}")
@@ -433,7 +435,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                             staff_sentiment = {}
                             category_sentiment = {}
 
-                        if current_outlet == outlet:
+                        if Outlet == outlet:
                             for dish, sentiment in dish_sentiment.items():
                                 if sentiment == 'positive':
                                     dish_positive_counts[dish] += 1
@@ -548,7 +550,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                     positive_summary, pos_summary_justification, negative_summary, neg_summary_justification,
                     my_better, my_better_justification, competitor_better, competitor_better_justification,
                     trend_pos_to_neg, trend_neg_to_pos, trend_note, category_note,
-                    outlet, month_to_process
+                    outlet, review_month
                 )
                 try:
                     cursor.execute(update_query, data_to_update)
@@ -571,7 +573,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 data_to_insert = (
-                    outlet, month_to_process, year, overall_positive_count, overall_negative_count, overall_neutral_count,
+                    Outlet, review_month, int(Year), overall_positive_count, overall_negative_count, overall_neutral_count,
                     json.dumps(dish_positive_counts_aggregated), json.dumps(dish_negative_counts_aggregated),
                     json.dumps(staff_positive_counts_aggregated), json.dumps(staff_negative_counts_aggregated),
                     json.dumps(category_positive_counts_aggregated), json.dumps(category_negative_counts_aggregated),
@@ -579,6 +581,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                     my_better, my_better_justification, competitor_better, competitor_better_justification,
                     trend_pos_to_neg, trend_neg_to_pos, trend_note, category_note
                 )
+                print(data_to_insert)
 
                 # Execute the SQL query
                 try:
