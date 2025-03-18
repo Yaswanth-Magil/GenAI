@@ -22,17 +22,17 @@ import re
 #from docx.enum.text import WD_BREAK_TYPE
 
 # Database credentials - Replace with your actual credentials
-db_host = "localhost"
-db_user = "root"
-db_password = "Yaswanth123."
-db_name = "genai"
-table_name = "output_dummy_2"
-
-# db_host = "10.162.0.3"
+# db_host = "localhost"
 # db_user = "root"
-# db_password = "Z*ZlRmnFCP@9V"
-# db_name = "mhrq"
-# table_name = "output_genai"
+# db_password = "Yaswanth123."
+# db_name = "genai"
+# table_name = "output_dummy_2"
+
+db_host = "10.162.0.3"
+db_user = "root"
+db_password = "Z*ZlRmnFCP@9V"
+db_name = "mhrq"
+table_name = "output_genai"
 
 year = datetime.datetime.now().year
 
