@@ -1,3 +1,4 @@
+# ReviewAnalysis.py
 import mysql.connector
 import time
 import os
@@ -22,13 +23,21 @@ db_config = {
     'raise_on_warnings': True
 }
 
+# db_config = {
+#     'user': 'root',
+#     'password': 'Z*ZlRmnFCP@9V',
+#     'host': '10.162.0.3',
+#     'database': 'mhrq',
+#     'raise_on_warnings': True
+# }
+
 
 def generate_content_from_file(review, api_key):  # Pass api_key as argument
     """Generates sentiment and extracts information from a review using Generative AI model."""
     prompt = f"""You are an expert in analyzing customer reviews for restaurants.  For the following review, please provide the overall sentiment of the review. Also, identify any staff names mentioned along with their sentiment in the review, any dish names mentioned along with their sentiment, and identify sentiment for each matching category from the following list: {', '.join(categories)}.  Provide your response in a JSON format with the following structure:
 
 {{
-  "review_sentiment": "positive" or "negative" or "neutral",
+  "review_sentiment": "positive","negative" or "neutral",
   "dish_sentiment": {{"dish_name1": "positive/negative/neutral", "dish_name2": "positive/negative/neutral"}} or {{}},
   "staff_sentiment": {{"staff_name1": "positive/negative/neutral", "staff_name2": "positive/negative/neutral"}} or {{}},
   "category_sentiment": {{"category1": "positive/negative/neutral", "category2": "positive/negative/neutral"}} or {{}}
@@ -57,7 +66,7 @@ Here is the review: {review}"""
 
 
 
-def process_reviews_in_db(api_key):  # Pass api_key to process_reviews_in_db
+def process_reviews_in_db(api_key, month_to_process):  # Pass api_key to process_reviews_in_db
     """Reads reviews from the database, analyzes them, and updates the table."""
 
     try:
@@ -65,7 +74,7 @@ def process_reviews_in_db(api_key):  # Pass api_key to process_reviews_in_db
         cursor = cnx.cursor()
 
         # SQL query to select rows where review_sentiment is NULL (or empty)
-        select_reviews_query = "SELECT `Outlet`, `review_month`, `Year`, reviews FROM reviews_trend_dummy WHERE `review_month` = 1"  # Limit to 1000 for safety
+        select_reviews_query = f"SELECT `Outlet`, `review_month`, `Year`, reviews FROM reviews_trend_dummy WHERE `review_month` = {month_to_process}"  # Limit to 1000 for safety
 
         cursor.execute(select_reviews_query)
         review_rows = cursor.fetchall()
@@ -152,4 +161,4 @@ def process_reviews_in_db(api_key):  # Pass api_key to process_reviews_in_db
 # Example usage
 # if __name__ == "__main__":
 #     api_key = os.environ.get("GOOGLE_API_KEY")
-#     process_reviews_in_db(api_key)
+#     process_reviews_in_db(api_key, month_to_process=1)
