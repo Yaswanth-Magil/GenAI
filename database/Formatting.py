@@ -28,6 +28,12 @@ db_password = "Yaswanth123."
 db_name = "genai"
 table_name = "output_dummy_2"
 
+# db_host = "10.162.0.3"
+# db_user = "root"
+# db_password = "Z*ZlRmnFCP@9V"
+# db_name = "mhrq"
+# table_name = "output_genai"
+
 year = datetime.datetime.now().year
 
 # Header Image Paths - Replace with your actual image paths
@@ -597,16 +603,16 @@ def open_word_file(word_file_path):
         logging.error(f"File '{word_file_path}' does not exist.")
 
 # --- Main execution ---
-if __name__ == "__main__":
-    outlet_value = "South Plainfield"  # Replace with the desired outlet value
-    review_month_value = 2  # Replace with the desired review month value
-    num_months = 3 # setting it to three.
+# if __name__ == "__main__":
+#     outlet_value = "South Plainfield"  # Replace with the desired outlet value
+#     review_month_value = 2  # Replace with the desired review month value
+#     num_months = 3 # setting it to three.
 
-    data = fetch_data_from_db(outlet_value, review_month_value, num_months=num_months)
-    path = f"A2B_{outlet_value}_{review_month_value}.docx"
-    if data is not None:
-       word =  create_word_document(outlet_value, review_month_value, data,
-                             output_filename=path)
-       open_word_file(path)
-    else:
-        print("Failed to fetch data. Check credentials and query.")
+#     data = fetch_data_from_db(outlet_value, review_month_value, num_months=num_months)
+#     path = f"A2B_{outlet_value}_{review_month_value}.docx"
+#     if data is not None:
+#        word =  create_word_document(outlet_value, review_month_value, data,
+#                              output_filename=path)
+#        open_word_file(path)
+#     else:
+#         print("Failed to fetch data. Check credentials and query.")
