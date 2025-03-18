@@ -22,6 +22,14 @@ db_config = {
     'raise_on_warnings': True
 }
 
+# db_config = {
+#     'user': 'root',
+#     'password': 'Z*ZlRmnFCP@9V',
+#     'host': '10.162.0.3',
+#     'database': 'mhrq',
+#     'raise_on_warnings': True
+# }
+
 def aggregate_counts(counts, api_key):
     """Aggregates counts of similar dishes or staff names using Gemini's understanding."""
     aggregated_counts = defaultdict(int)
@@ -85,7 +93,6 @@ def summarize_reviews(reviews, sentiment_type, api_key):
         prompt = f"""Summarize the positive reviews concisely in 5 to 10 points.
 Each point should cover a separate topic or key concept.
 Provide one observation per point, ensuring it is limited to one idea.
-Include a justification or example review for each point.
 Do not include any additional information or comments.
 Format:
 [Key Concept]: [Observation or feature]. and Task: Summarize positive Restaurant Reviews
@@ -140,18 +147,28 @@ def analyze_competition(my_reviews, competitor_reviews, my_name, competitor_name
 
     prompt_better = f"""You are an expert restaurant reviewer. Compare the following customer reviews of {my_name} with customer reviews of {competitor_name}.
 Identify specific aspects where {my_name} excels compared to {competitor_name}, such as food quality, service, ambiance, or value.
-Provide specific examples from the reviews as justification.
+Do not include any additional information or comments. Do not provide additional information otherthan asked.
+While mentioning my name, use like this `A2B {my_name}` . Stick on to the format provided. Do not provide anything excess other than asked.
 Use the following format:
-
-Exceptional Service: The food quality consistently receives high praise, with reviewers highlighting the authentic taste and deliciousness of various South Indian dishes.
+Format: (Make the key concept bold with **)
+Key Concept: [Observation or feature].
+Example:
+Breadth of Menu: Chand Palace typically boasts a larger menu encompassing a wider variety of North Indian, South Indian, and Indo-Chinese dishes.
+Consistent Quality and Availability: Being a more established chain, Chand Palace generally offers more consistent quality and availability across its various locations.
+Accessibility and Convenience: The chain establishment of Chand Palace provides more locations for customers to choose from for easier access to its menu.
 """
 
     prompt_worse = f"""You are an expert restaurant reviewer. Compare the following customer reviews of {my_name} with customer reviews of {competitor_name}.
 Identify specific aspects where {competitor_name} excels compared to {my_name}, such as food quality, service, ambiance, or value.
-Provide specific examples from the reviews as justification.
+Do not include any additional information or comments. Do not provide additional information otherthan asked.
+While mentioning my name, use like this `A2B {my_name}` . Stick on to the format provided. Do not provide anything excess other than asked.
 Use the following format:
-
-Food Quality & Variety (Buffet): Many reviewers explicitly call out the "best Indian vegetarian buffet" and "delicious vegetarian weekend buffet." One reviewer even described it as a "Vegetarian Food Lover''s Paradise," emphasizing the unforgettable vegetarian buffet experience.
+Format: (Make the key concept bold with **)
+Key Concept: [Observation or feature].
+Example:
+Price: Depending on the specific restaurant, some South Plainfield establishments might offer slightly lower prices on certain items compared to Chand Palace.
+Specific Regional Dishes: If you are looking for hyper-local or specific regional Indian dishes, smaller restaurants in South Plainfield might specialize in those areas, while Chand Palace caters to a broader, pan-Indian palate.
+Takeout/Delivery Speed: Depending on proximity and staffing, certain South Plainfield restaurants *might* offer slightly faster takeout/delivery options for residents in that specific area.
 """
     try:
         genai.configure(api_key=api_key)  # Configure Gemini API *within* the function
@@ -176,23 +193,28 @@ def analyze_trend_shift(previous_month_reviews, current_month_reviews, outlet, p
     if not previous_month_reviews or not current_month_reviews:
         return "Insufficient data to determine trend shifts."
 
-    prompt = f"""Review Changes from Positive to Negative: Note any reviews that shifted from positive to negative in subsequent months. 
+    prompt = f"""Review Changes from Positive to Negative: Note any reviews that shifted from positive to negative in subsequent months.
+
+
+Use the following format:
+Format: (Make the key concept bold with **)
+Key Concept: [Observation or feature].
 
 Example: 
 Food Consistency Issues: 
 Previously, the food was praised for being consistently good across locations, maintaining authentic South Indian flavors. 
 This month, reviews highlight inconsistent food quality, with some customers stating that they had great experiences before, but recent visits were disappointing. 
-Example: “This restaurant used to be our longtime favorite, but our last couple of visits have been disappointing.” 
+
 Spice Level Issues: 
 Last month, the restaurant was praised for offering customizable spice levels and catering to dietary preferences. 
 This month, there are complaints that spice levels are inconsistent, sometimes excessively high, making dishes difficult to enjoy. 
-Example: “Masala dosa with an extremely spicy potato filling, far spicier than usual.” 
+
 Ambiance Perception Declined: 
 Previously, the ambiance was considered pleasant, with instrumental music adding to the experience. 
 Now, there are complaints that the restaurant is overcrowded, seating is tight, and the atmosphere is uncomfortable. 
 Service Deterioration: 
 While last month’s reviews consistently praised the friendly and efficient service, this month, multiple complaints mention rudeness, long wait times, and unprofessional behavior. 
-Example: “Worst service ever. Very rude staff… same experiences every time.” 
+
 
 Identify the top 3 reasons why customer reviews for {outlet} shifted from {previous_sentiment} in the previous month to {current_sentiment} in the current month. Provide specific examples from the reviews as justification.
 
@@ -227,6 +249,8 @@ def get_month_reviews(cursor, outlet, month, review_text_col_name, review_sentim
                 month_reviews['positive'].append(review_text)
             elif sentiment_lower == 'negative':
                 month_reviews['negative'].append(review_text)
+            elif sentiment_lower != 'positive' and sentiment_lower != 'negative':
+                month_reviews['neutral'].append(review_text)
     return month_reviews
 
 def generate_trend_note(outlet, review_data, api_key):
@@ -311,10 +335,10 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
     """Processes reviews from the database and stores aggregated data in output_dummy_2, including trend and category notes."""
 
     competitors = {
-        'South Plainfield': 'Chand Palace',  # Competitors to Add or Remove.
+        # 'South Plainfield': 'Chand Palace',  # Competitors to Add or Remove.
         # 'Princeton': 'Saravana Bhavan',  # Competitors to Add or Remove.
         # 'Parsippany': 'Sangeetha',      # Competitors to Add or Remove.
-        # 'Chicago': 'Udupi Palace'      # Competitors to Add or Remove.
+        'Chicago': 'Udupi Palace'      # Competitors to Add or Remove.
     }
 
     try:
@@ -323,6 +347,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
 
         # ***FIX: Getting column indices for main sheet and outlet***
         outlet_col_name = 'outlet'
+        year = 'year'
         review_text_col_name = 'reviews'
         review_sentiment_col_name = 'review_sentiment'
         dish_sentiment_col_name = 'dish_sentiment'
@@ -355,7 +380,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
             cursor.execute(check_query, (outlet, month_to_process))
             existing_record = cursor.fetchone()
 
-            allReviews = defaultdict(lambda: {'positive': [], 'negative': []})
+            allReviews = defaultdict(lambda: {'positive': [], 'negative': [], 'neutral': []})
             dish_positive_counts = defaultdict(int)
             dish_negative_counts = defaultdict(int)
             staff_positive_counts = defaultdict(int)
@@ -387,6 +412,9 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
 
                             elif sentiment_lower == 'negative':
                                 allReviews[current_outlet]['negative'].append(review_text)
+                            elif sentiment_lower != 'positive' and sentiment_lower != 'negative':
+                                allReviews[current_outlet]['neutral'].append(review_text)
+
 
                         elif current_outlet == competitor:
                             if sentiment_lower == 'positive':
@@ -435,7 +463,7 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
 
             overall_positive_count = len(allReviews[outlet]['positive'])
             overall_negative_count = len(allReviews[outlet]['negative'])
-            overall_neutral_count = 0
+            overall_neutral_count = len(allReviews[outlet]['neutral'])  # Change made here to add neutral count.
 
             dish_positive_counts_aggregated = aggregate_counts(dish_positive_counts, api_key)
             dish_negative_counts_aggregated = aggregate_counts(dish_negative_counts, api_key)
@@ -533,17 +561,17 @@ def process_reviews_and_store_data(api_key, month_to_process=2):
                 # Prepare the SQL query for insertion
                 insert_query = """
                     INSERT INTO output_dummy_2 (
-                        outlet, review_month, overall_positive_count, overall_negative_count, overall_neutral_count,
+                        outlet, review_month, year, overall_positive_count, overall_negative_count, overall_neutral_count,
                         dish_positive_counts, dish_negative_counts, staff_positive_counts, staff_negative_counts,
                         category_positive_counts, category_negative_counts, positive_summary,
                         pos_summary_justification, negative_summary, neg_summary_justification,
                         where_i_do_better, where_i_do_better_justification,
                         where_competitor_do_better, where_competitor_do_better_justification,
                         trend_pos_to_neg, trend_neg_to_pos, trend_note, category_note
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 data_to_insert = (
-                    outlet, month_to_process, overall_positive_count, overall_negative_count, overall_neutral_count,
+                    outlet, month_to_process, year, overall_positive_count, overall_negative_count, overall_neutral_count,
                     json.dumps(dish_positive_counts_aggregated), json.dumps(dish_negative_counts_aggregated),
                     json.dumps(staff_positive_counts_aggregated), json.dumps(staff_negative_counts_aggregated),
                     json.dumps(category_positive_counts_aggregated), json.dumps(category_negative_counts_aggregated),
