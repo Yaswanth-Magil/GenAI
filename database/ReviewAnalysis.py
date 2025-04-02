@@ -15,21 +15,21 @@ categories = [
 ]
 
 # Database configuration
-# db_config = {
-#     'user': 'root',
-#     'password': 'Yaswanth123.',
-#     'host': 'localhost',
-#     'database': 'genai',
-#     'raise_on_warnings': True
-# }
-
 db_config = {
     'user': 'root',
-    'password': 'Z*ZlRmnFCP@9V',
-    'host': '10.162.0.3',
-    'database': 'mhrq',
+    'password': 'Yaswanth123.',
+    'host': 'localhost',
+    'database': 'genai',
     'raise_on_warnings': True
 }
+
+# db_config = {
+#     'user': 'root',
+#     'password': 'Z*ZlRmnFCP@9V',
+#     'host': '10.162.0.3',
+#     'database': 'mhrq',
+#     'raise_on_warnings': True
+# }
 
 
 def generate_content_from_file(review, api_key):  # Pass api_key as argument

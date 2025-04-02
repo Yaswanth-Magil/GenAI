@@ -4,8 +4,14 @@ import traceback
 import ReviewAnalysis
 import preprocess
 import Formatting
+import datetime
+import functions_framework
 
+
+@functions_framework.http
 def hello_http(request):
+    
+    month = datetime.datetime.now().month
     """
     HTTP Cloud Function entry point for review analysis.
     Args:
@@ -21,7 +27,8 @@ def hello_http(request):
         #     return "Error: API_KEY environment variable not set.", 500  # Indicate missing key
 
         api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
-        month_to_process = int(request.args.get('month', 2)) 
+        # month_to_process = int(request.args.get('month', 2))  #idhu enna?
+        month_to_process = month - 1
         # 2. Review Analysis
         print("Starting Review Analysis...")
         ReviewAnalysis.process_reviews_in_db(api_key, month_to_process=month_to_process)

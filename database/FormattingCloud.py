@@ -20,19 +20,20 @@ import logging
 import re
 #from docx.enum.text import WD_BULLET_TYPE #Removed this as this import gives error
 #from docx.enum.text import WD_BREAK_TYPE
+from google.cloud import storage
 
 # Database credentials - Replace with your actual credentials
-db_host = "localhost"
-db_user = "root"
-db_password = "Yaswanth123."
-db_name = "genai"
-table_name = "output_dummy_2"
-
-# db_host = "10.162.0.3"
+# db_host = "localhost"
 # db_user = "root"
-# db_password = "Z*ZlRmnFCP@9V"
-# db_name = "mhrq"
+# db_password = "Yaswanth123."
+# db_name = "genai"
 # table_name = "output_dummy_2"
+
+db_host = "10.162.0.3"
+db_user = "root"
+db_password = "Z*ZlRmnFCP@9V"
+db_name = "mhrq"
+table_name = "output_genai"
 
 year = datetime.datetime.now().year
 
@@ -61,6 +62,9 @@ columns_to_fetch = [
     'category_note'
 ]
 
+# GCS Configuration - REPLACE WITH YOUR PROJECT ID AND BUCKET NAME
+GCS_PROJECT_ID = "magildev"  # Replace with your GCP project ID
+GCS_BUCKET_NAME = "magildev-genai"  # Replace with your GCS bucket name
 
 def process_text(document, text):
     """Processes text for bold patterns and bullet points."""
@@ -148,14 +152,8 @@ def create_trend_chart(data, chart_img_path):
     """Generates a trend chart using the fetched data for multiple months."""
     if not data or len(data) == 0:
         return False
-    
-    # Mapping of month numbers to names
-    month_map = {
-        "1": "January", "2": "February", "3": "March", "4": "April", "5": "May", "6": "June",
-        "7": "July", "8": "August", "9": "September", "10": "October", "11": "November", "12": "December"
-    }
-    
-    months = [month_map.get(str(month), str(month)) for month, _ in data]  # Convert numbers to month names
+
+    months = [str(month) for month, _ in data] # get the months from data.
     positive_counts = [month_data['overall_positive_count'] or 0 for _, month_data in data]
     negative_counts = [month_data['overall_negative_count'] or 0 for _, month_data in data]
     neutral_counts = [month_data['overall_neutral_count'] or 0 for _, month_data in data]
@@ -198,7 +196,7 @@ def create_trend_chart(data, chart_img_path):
     ax1.set_ylabel('Percentage of Reviews')
     ax1.set_ylim(0, 100)
     ax1.set_xticks(index)
-    ax1.set_xticklabels(months)  # Updated X-axis labels
+    ax1.set_xticklabels(months)
     ax1.legend()
     ax1.grid(False)
 
@@ -217,6 +215,7 @@ def create_trend_chart(data, chart_img_path):
     plt.savefig(chart_img_path)
     plt.close()
     return True
+
 
 def create_most_mentioned_chart(data, horizontal_combined_chart_img_path):
     """Generates a chart of most mentioned staff and dishes."""
@@ -363,8 +362,40 @@ def create_category_chart(data, plot_filename):
     return True
 
 
+def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
+    """Uploads a file to the bucket."""
+    # Initialize a storage client
+    storage_client = storage.Client()
+    # Get the bucket
+    bucket = storage_client.bucket(bucket_name)
+    # Create a blob object from the filepath
+    blob = bucket.blob(destination_blob_name)
+    # Upload the file to GCS
+    blob.upload_from_filename(source_file_name)
+    print(f"File {source_file_name} uploaded to {destination_blob_name}.")
+
+
+def download_from_gcs(bucket_name, source_blob_name, destination_file_name):
+    """Downloads a file from the bucket."""
+    # Initialize a storage client
+    storage_client = storage.Client()
+    # Get the bucket
+    bucket = storage_client.bucket(bucket_name)
+    # Create a blob object from the filepath
+    blob = bucket.blob(source_blob_name)
+    # Download the file to a local destination
+    blob.download_to_filename(destination_file_name)
+    print(f"File {source_blob_name} downloaded to {destination_file_name}.")
+
+
 def create_word_document(outlet, review_month, data, output_filename="output.docx"):
     """Creates a Word document with the fetched data and charts in the specified order."""
+
+    # Download header and footer images from GCS
+    header_img_local_path = '/tmp/header_img.png'
+    footer_img_local_path = '/tmp/footer_img.png'
+    download_from_gcs(GCS_BUCKET_NAME, 'images/maghilLogo.png', header_img_local_path)
+    download_from_gcs(GCS_BUCKET_NAME, 'images/og.png', footer_img_local_path)
 
     document = Document()
 
@@ -385,7 +416,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     header_paragraph = header.paragraphs[0]
     header_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
-    header_img = Image.open(header_img_path)
+    header_img = Image.open(header_img_local_path)
     header_img_byte_arr = io.BytesIO()
     header_img.save(header_img_byte_arr, format='PNG')
     header_img_byte_arr.seek(0)
@@ -404,7 +435,7 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     cell2 = table.cell(0, 1)
     cell2.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     cell2.text = "                                                                  "
-    footer_img = Image.open(footer_img_path)
+    footer_img = Image.open(footer_img_local_path)
     footer_img_byte_arr = io.BytesIO()
     footer_img.save(footer_img_byte_arr, format='PNG')
     footer_img_byte_arr.seek(0)
@@ -596,9 +627,12 @@ def create_word_document(outlet, review_month, data, output_filename="output.doc
     for paragraph in document.paragraphs:
         paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.JUSTIFY
 
-
+    # Save the document locally first
     document.save(output_filename)
-    print(f"Word document '{output_filename}' created successfully.")
+
+    # Upload the document to GCS
+    upload_to_gcs(GCS_BUCKET_NAME, output_filename, output_filename)
+    print(f"Word document '{output_filename}' uploaded to GCS bucket '{GCS_BUCKET_NAME}'.")
 
 
 def open_word_file(word_file_path):

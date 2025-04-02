@@ -1,3 +1,4 @@
+#preprocess.py
 import mysql.connector
 import time
 import os
@@ -14,21 +15,21 @@ categories = [
 ]
 
 # Database configuration
-# db_config = {
-#     'user': 'root',
-#     'password': 'Yaswanth123.',
-#     'host': 'localhost',
-#     'database': 'genai',
-#     'raise_on_warnings': True
-# }
-
 db_config = {
     'user': 'root',
-    'password': 'Z*ZlRmnFCP@9V',
-    'host': '10.162.0.3',
-    'database': 'mhrq',
+    'password': 'Yaswanth123.',
+    'host': 'localhost',
+    'database': 'genai',
     'raise_on_warnings': True
 }
+
+# db_config = {
+#     'user': 'root',
+#     'password': 'Z*ZlRmnFCP@9V',
+#     'host': '10.162.0.3',
+#     'database': 'mhrq',
+#     'raise_on_warnings': True
+# }
 
 def aggregate_counts(counts, api_key):
     """Aggregates counts of similar dishes or staff names using Gemini's understanding."""
@@ -195,7 +196,7 @@ def analyze_trend_shift(previous_month_reviews, current_month_reviews, outlet, p
 
     prompt = f"""Review Changes from Positive to Negative: Note any reviews that shifted from positive to negative in subsequent months.
 
-
+Do not generate any summary or additional information. Stick to the format provided.
 Use the following format:
 Format: (Make the key concept bold with **)
 Key Concept: [Observation or feature].
@@ -331,7 +332,7 @@ Negative: {json.dumps(category_negative_counts_aggregated)}
         print(f"Error during category note generation: {e}")
         return "Error generating category note."
 
-def process_reviews_and_store_data(api_key, month_to_process=2):
+def process_reviews_and_store_data(api_key, month_to_process):
     """Processes reviews from the database and stores aggregated data in output_dummy_2, including trend and category notes."""
 
     competitors = {
