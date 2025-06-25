@@ -11,7 +11,7 @@ def main():
     """
     try:
         # 1. Set up API Key from environment Variable
-        api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+        api_key = ""
         # if not api_key:
         #     raise ValueError("GOOGLE_API_KEY environment variable not set.")
 
