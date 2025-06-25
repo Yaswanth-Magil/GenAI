@@ -118,7 +118,7 @@ def main():
     """Main function to execute the sentiment analysis."""
     start_time = time.time()  # Start time
 
-    api_key = "AIzaSyAxk2Wog2ylp7wuQgTGdQCakzJXMoRHzO8"
+    api_key =""
     genai.configure(api_key=api_key)
 
     try:
